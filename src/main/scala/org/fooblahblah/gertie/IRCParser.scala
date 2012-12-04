@@ -13,8 +13,8 @@ class IRCParser extends RegexParsers {
     case _ => CODE("123", Nil)
   }
 
-  def unknown: Parser[UNKNOWN] = """[a-zA-Z]+ """.r ~ """.*""".r ^^ {
-    case cmd ~ args => UNKNOWN(cmd.trim, args.trim)
+  def unknown: Parser[UNKNOWN] = """[a-zA-Z]+""".r ~ opt("""\s+.*""".r) ^^ {
+    case cmd ~ args => UNKNOWN(cmd.trim, args.map(_.trim))
   }
 
   def command: Parser[Command] = (
@@ -26,6 +26,9 @@ class IRCParser extends RegexParsers {
     | mode
     | join
     | list
+    | part
+    | who
+    | topic
     | unknown
   )
 
@@ -70,11 +73,18 @@ class IRCParser extends RegexParsers {
   }
 
   def list: Parser[LIST] = "LIST" ~> opt(whitespace ~> channels) ^^ { LIST(_) }
+
+  def part: Parser[PART] = "PART" ~> whitespace ~> channels ^^ { PART(_) }
+
+  def topic: Parser[TOPIC] = "TOPIC" ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
+
+  def who: Parser[WHO] = "WHO" ~> opt(whitespace ~> channel) ^^ { WHO(_) }
 }
+
 
 sealed abstract class Command
 
-case class UNKNOWN(cmd: String, params: String) extends Command
+case class UNKNOWN(cmd: String, params: Option[String]) extends Command
 
 case class CODE(code: String, params: Seq[String]) extends Command
 
@@ -93,3 +103,9 @@ case class USER(userName: String, hostName: String, serverName: String, realName
 case class JOIN(channels: Seq[(String, Option[String])]) extends Command
 
 case class LIST(channels: Option[Seq[String]]) extends Command
+
+case class WHO(channel: Option[String]) extends Command
+
+case class PART(channels: Seq[String]) extends Command
+
+case class TOPIC(channel: String, title: Option[String]) extends Command

@@ -13,11 +13,11 @@ class IRCParserSpec extends Specification {
 
   "The parser" should {
     "handle unknown message" in {
-      parser.parseAll(message, "BLAH foo").get === UNKNOWN("BLAH", "foo")
+      parser.parseAll(message, "BLAH foo").get === UNKNOWN("BLAH", Some("foo"))
     }
 
     "handle unknown message with prefix" in {
-      parser.parseAll(message, ":foo BLAH foo").get === UNKNOWN("BLAH", "foo")
+      parser.parseAll(message, ":foo BLAH foo").get === UNKNOWN("BLAH", Some("foo"))
     }
 
     "handle QUIT" in {
@@ -61,5 +61,20 @@ class IRCParserSpec extends Specification {
       parser.parseAll(message, "LIST #boulder").get === LIST(Some(List("boulder")))
       parser.parseAll(message, "LIST #boulder,  &chan1").get === LIST(Some(List("boulder", "chan1")))
     }
-  }
+
+    "handle PART" in {
+      parser.parseAll(message, "PART #boulder").get === PART(List("boulder"))
+      parser.parseAll(message, "PART #boulder,  &chan1").get === PART(List("boulder", "chan1"))
+    }
+
+    "handle WHO" in {
+      parser.parseAll(message, "WHO").get === WHO(None)
+      parser.parseAll(message, "WHO #boulder").get === WHO(Some("boulder"))
+    }
+
+    "handle TOPIC" in {
+      parser.parseAll(message, "TOPIC #boulder").get === TOPIC("boulder", None)
+      parser.parseAll(message, "TOPIC #boulder smoke em while you got em!").get === TOPIC("boulder", Some("smoke em while you got em!"))
+    }
+}
 }
