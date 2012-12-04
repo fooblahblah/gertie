@@ -1,5 +1,5 @@
 An IRC/Campfire bridge written in Scala using the spray-io framework.
 
-The name Gertie is inspired by the ill-fated Tacoma Narrows bridge from the 40's.  The bridge collapsed 4 months after completion and earned the nickname, "Galloping Gertie".
+The name Gertie is inspired by the ill-fated Tacoma Narrows bridge from the 40's.  The bridge collapsed 4 months after completion, earning the nickname, "Galloping Gertie".
 
 http://en.wikipedia.org/wiki/Tacoma_Narrows_Bridge_(1940)
