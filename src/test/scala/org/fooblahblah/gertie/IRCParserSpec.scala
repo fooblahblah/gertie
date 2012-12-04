@@ -76,5 +76,17 @@ class IRCParserSpec extends Specification {
       parser.parseAll(message, "TOPIC #boulder").get === TOPIC("boulder", None)
       parser.parseAll(message, "TOPIC #boulder smoke em while you got em!").get === TOPIC("boulder", Some("smoke em while you got em!"))
     }
-}
+
+    "handle NAMES" in {
+      parser.parseAll(message, "NAMES #boulder").get === NAMES(Seq("boulder"))
+      parser.parseAll(message, "NAMES   #boulder  , #scala").get === NAMES(Seq("boulder", "scala"))
+      parser.parseAll(message, ":random_prefix NAMES   #boulder  , #scala").get === NAMES(Seq("boulder", "scala"))
+    }
+
+    "handle PRIVMSG" in {
+      val msg = "This is a test"
+      parser.parseAll(message, s"PRIVMSG #boulder :$msg").get === PRIVMSG(Seq("boulder"), msg)
+      parser.parseAll(message, s"PRIVMSG #boulder blah").get === PRIVMSG(Seq("boulder"), "blah")
+    }
+  }
 }

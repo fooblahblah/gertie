@@ -5,16 +5,8 @@ import scala.util.parsing.combinator.RegexParsers
 class IRCParser extends RegexParsers {
   override def skipWhitespace = false
 
-  def prefix: Parser[String] = """:[^ ]+ """.r
-
-  def params: Parser[String] = """ :?(.*)""".r
-
-  def code: Parser[CODE] = """([0-9]{3})""".r ~ params ^^ {
-    case _ => CODE("123", Nil)
-  }
-
-  def unknown: Parser[UNKNOWN] = """[a-zA-Z]+""".r ~ opt("""\s+.*""".r) ^^ {
-    case cmd ~ args => UNKNOWN(cmd.trim, args.map(_.trim))
+  def code: Parser[CODE] = """([0-9]{3})""".r ~ repsep(params, comma) ^^ {
+    case code ~ params => CODE(code, params)
   }
 
   def command: Parser[Command] = (
@@ -29,10 +21,24 @@ class IRCParser extends RegexParsers {
     | part
     | who
     | topic
+    | names
+    | privmsg
     | unknown
   )
 
+  def letter = """[a-zA-Z]""".r
+
+  def number = """[0-9]""".r
+
+  def special = "-" | "[" | "]" | "\\" | "`" | "^" | "{" | "}"
+
   def whitespace = """\s+""".r
+
+  def comma = """\s*,\s*""".r
+
+  def prefix: Parser[String] = """:[^ ]+ """.r
+
+  def params: Parser[String] = whitespace ~> ( ":" ~> """.*""".r | opt(":") ~> """.*""".r )
 
   def message: Parser[Command] = opt(prefix) ~> (command | code)
 
@@ -40,11 +46,15 @@ class IRCParser extends RegexParsers {
 
   def servername = hostname
 
-  def nickname = """([^ ]+)""".r
+  def nickname = letter ~ rep(letter | number | special) ^^ {case leading ~ rest => leading + rest.mkString }
+
+  def unknown: Parser[UNKNOWN] = """[a-zA-Z]+""".r ~ opt("""\s+.*""".r) ^^ {
+    case cmd ~ args => UNKNOWN(cmd.trim, args.map(_.trim))
+  }
 
   def channel: Parser[String] = """(#|&)""".r ~> """[^\s,]+""".r
 
-  def channels: Parser[Seq[String]] = repsep(channel, """,\s*""".r)
+  def channels: Parser[Seq[String]] = repsep(channel, comma)
 
   def quit: Parser[QUIT] = "QUIT" ~> opt(" :" ~> """(.*)""".r) ^^ { QUIT(_) }
 
@@ -79,6 +89,12 @@ class IRCParser extends RegexParsers {
   def topic: Parser[TOPIC] = "TOPIC" ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
 
   def who: Parser[WHO] = "WHO" ~> opt(whitespace ~> channel) ^^ { WHO(_) }
+
+  def names: Parser[NAMES] = "NAMES" ~> whitespace ~> channels ^^ { NAMES(_) }
+
+  def privmsg: Parser[PRIVMSG] = "PRIVMSG " ~> repsep(nickname | channel, comma) ~ (whitespace ~> opt(":") ~> """.+""".r) ^^ {
+    case target ~ msg => PRIVMSG(target, msg)
+  }
 }
 
 
@@ -109,3 +125,7 @@ case class WHO(channel: Option[String]) extends Command
 case class PART(channels: Seq[String]) extends Command
 
 case class TOPIC(channel: String, title: Option[String]) extends Command
+
+case class NAMES(channels: Seq[String]) extends Command
+
+case class PRIVMSG(target: Seq[String], msg: String) extends Command
