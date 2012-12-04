@@ -1,8 +1,25 @@
-package org.fooblahblah.gertie
+package org.fooblahblah.gertie.parser
 
 import org.specs2.mutable._
-import org.specs2.runner.JUnitRunner
 import org.junit.runner.RunWith
+import org.fooblahblah.gertie.parser.AWAY.apply
+import org.fooblahblah.gertie.parser.JOIN.apply
+import org.fooblahblah.gertie.parser.LIST.apply
+import org.fooblahblah.gertie.parser.MODE.apply
+import org.fooblahblah.gertie.parser.NAMES.apply
+import org.fooblahblah.gertie.parser.NICK.apply
+import org.fooblahblah.gertie.parser.PART.apply
+import org.fooblahblah.gertie.parser.PASS.apply
+import org.fooblahblah.gertie.parser.PRIVMSG.apply
+import org.fooblahblah.gertie.parser.QUIT.apply
+import org.fooblahblah.gertie.parser.TOPIC.apply
+import org.fooblahblah.gertie.parser.UNKNOWN.apply
+import org.fooblahblah.gertie.parser.USER.apply
+import org.fooblahblah.gertie.parser.WHO.apply
+import scala.Some.apply
+import scala.collection.Seq.apply
+import scala.collection.immutable.List.apply
+import org.specs2.runner.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class IRCParserSpec extends Specification {

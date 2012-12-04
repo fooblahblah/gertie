@@ -1,6 +1,7 @@
-package org.fooblahblah.gertie
+package org.fooblahblah.gertie.parser
 
 import scala.util.parsing.combinator.RegexParsers
+import scala.Some.apply
 
 class IRCParser extends RegexParsers {
   override def skipWhitespace = false
