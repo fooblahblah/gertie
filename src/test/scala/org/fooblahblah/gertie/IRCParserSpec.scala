@@ -14,12 +14,17 @@ class IRCParserSpec extends Specification {
   "The parser" should {
     "handle unknown message" in {
       val result = parser.parseAll(message, "BLAH foo")
-      result.get === Unknown("BLAH", "foo")
+      result.get === UNKNOWN("BLAH", "foo")
     }
     
     "handle unknown message with prefix" in {
       val result = parser.parseAll(message, ":foo BLAH foo")
-      result.get === Unknown("BLAH", "foo")
+      result.get === UNKNOWN("BLAH", "foo")
+    }
+    
+    "handle QUIT" in {
+      val result = parser.parseAll(message, "QUIT :audi5000")
+      result.get === QUIT(Some("audi5000"))
     }
     
     "handle PASS" in {

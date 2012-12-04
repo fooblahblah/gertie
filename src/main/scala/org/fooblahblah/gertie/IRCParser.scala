@@ -9,26 +9,29 @@ class IRCParser extends RegexParsers {
   
   def params: Parser[String] = """ :?(.*)""".r
 
-  def code: Parser[Code] = """([0-9]{3})""".r ~ params ^^ { 
-    case _ => Code("123", Nil) 
+  def code: Parser[CODE] = """([0-9]{3})""".r ~ params ^^ { 
+    case _ => CODE("123", Nil) 
   }
   
-  def unknown: Parser[Unknown] = """[a-zA-Z]+ """.r ~ """.*""".r ^^ { 
-    case cmd ~ args => Unknown(cmd.trim, args.trim) 
+  def unknown: Parser[UNKNOWN] = """[a-zA-Z]+ """.r ~ """.*""".r ^^ { 
+    case cmd ~ args => UNKNOWN(cmd.trim, args.trim) 
   } 
     
   def command: Parser[Command] = (
     pass 
     | nick
     | user
+    | quit
     | unknown
   )
   
-  def hostname: Parser[String] = """[a-zA-Z0-9\-]+""".r
+  def hostname: Parser[String] = repsep("""[a-zA-Z0-9\-]+""".r, ".") ^^ { _.mkString(".") }
   
   def servername = hostname
   
   def message: Parser[Command] = opt(prefix) ~> (command | code)
+
+  def quit: Parser[QUIT] = "QUIT " ~> opt(":" ~> """(.*)""".r) ^^ { QUIT(_) }
 
   def pass: Parser[PASS] = "PASS " ~> """(.*)""".r ^^ { PASS(_) }
   
@@ -40,8 +43,9 @@ class IRCParser extends RegexParsers {
 }
 
 sealed abstract class Command
-case class Unknown(cmd: String, params: String) extends Command
-case class Code(code: String, params: Seq[String]) extends Command
+case class UNKNOWN(cmd: String, params: String) extends Command
+case class CODE(code: String, params: Seq[String]) extends Command
+case class QUIT(msg: Option[String]) extends Command
 case class PASS(password: String) extends Command
 case class NICK(nick: String) extends Command
 case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
