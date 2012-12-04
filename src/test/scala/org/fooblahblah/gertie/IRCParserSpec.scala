@@ -8,38 +8,58 @@ import org.junit.runner.RunWith
 class IRCParserSpec extends Specification {
 
   lazy val parser = new IRCParser
-  
+
   import parser._
-  
+
   "The parser" should {
     "handle unknown message" in {
-      val result = parser.parseAll(message, "BLAH foo")
-      result.get === UNKNOWN("BLAH", "foo")
+      parser.parseAll(message, "BLAH foo").get === UNKNOWN("BLAH", "foo")
     }
-    
+
     "handle unknown message with prefix" in {
-      val result = parser.parseAll(message, ":foo BLAH foo")
-      result.get === UNKNOWN("BLAH", "foo")
+      parser.parseAll(message, ":foo BLAH foo").get === UNKNOWN("BLAH", "foo")
     }
-    
+
     "handle QUIT" in {
-      val result = parser.parseAll(message, "QUIT :audi5000")
-      result.get === QUIT(Some("audi5000"))
+      parser.parseAll(message, "QUIT").get === QUIT(None)
+      parser.parseAll(message, "QUIT :audi5000").get === QUIT(Some("audi5000"))
     }
-    
+
+    "handle AWAY" in {
+      parser.parseAll(message, "AWAY").get === AWAY(None)
+      parser.parseAll(message, "AWAY :out to lunch").get === AWAY(Some("out to lunch"))
+    }
+
+    "handle MODE" in {
+      parser.parseAll(message, "MODE #scala o").get === MODE("scala", "o")
+      parser.parseAll(message, "MODE #scala +s").get === MODE("scala", "s")
+      parser.parseAll(message, "MODE fooblahblah -i").get === MODE("fooblahblah", "i")
+      parser.parseAll(message, "MODE fooblahblah -i random blah").get === MODE("fooblahblah", "i")
+    }
+
     "handle PASS" in {
-      val result = parser.parseAll(message, "PASS foo")
-      result.get === PASS("foo")
+      parser.parseAll(message, "PASS foo").get === PASS("foo")
     }
 
     "handle NICK" in {
-      val result = parser.parseAll(message, "NICK fooblahblah")
-      result.get === NICK("fooblahblah")
+      parser.parseAll(message, "NICK fooblahblah").get === NICK("fooblahblah")
     }
-    
+
     "handle USER" in {
-      val result = parser.parseAll(message, "USER jsimpson fugazi localhost :Jeff Simpson")
-      result.get === USER("jsimpson", "fugazi", "localhost", "Jeff Simpson")
+      parser.parseAll(message, "USER jsimpson fugazi localhost :Jeff Simpson").get === USER("jsimpson", "fugazi", "localhost", "Jeff Simpson")
+    }
+
+    "handle JOIN" in {
+      parser.parseAll(message, "JOIN #boulder").get === JOIN(List(("boulder", None)))
+      parser.parseAll(message, "JOIN #boulder, &scala").get === JOIN(List(("boulder", None), ("scala", None)))
+      parser.parseAll(message, "JOIN #boulder, &scala bogus123").get === JOIN(List(("boulder", Some("bogus123")), ("scala", None)))
+      parser.parseAll(message, "JOIN #boulder, &scala bogus123,   fubar").get === JOIN(List(("boulder", Some("bogus123")), ("scala", Some("fubar"))))
+    }
+
+    "handle LIST" in {
+      parser.parseAll(message, "LIST").get === LIST(None)
+      parser.parseAll(message, "LIST #boulder").get === LIST(Some(List("boulder")))
+      parser.parseAll(message, "LIST #boulder,  &chan1").get === LIST(Some(List("boulder", "chan1")))
     }
   }
 }
