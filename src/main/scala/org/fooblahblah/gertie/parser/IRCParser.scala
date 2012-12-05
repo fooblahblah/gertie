@@ -3,7 +3,9 @@ package org.fooblahblah.gertie.parser
 import scala.util.parsing.combinator.RegexParsers
 import scala.Some.apply
 
-class IRCParser extends RegexParsers {
+object IRCParser extends RegexParsers {
+  import IRCCommands._
+
   override def skipWhitespace = false
 
   def code: Parser[CODE] = """([0-9]{3})""".r ~ repsep(params, comma) ^^ {
@@ -24,8 +26,15 @@ class IRCParser extends RegexParsers {
     | topic
     | names
     | privmsg
+    | ping
     | unknown
   )
+
+  def message: Parser[Command] = opt(prefix) ~> (command | code)
+
+  def newline = "\n"
+
+  def CRLF = "\r\n"
 
   def letter = """[a-zA-Z]""".r
 
@@ -41,8 +50,6 @@ class IRCParser extends RegexParsers {
 
   def params: Parser[String] = whitespace ~> ( ":" ~> """.*""".r | opt(":") ~> """.*""".r )
 
-  def message: Parser[Command] = opt(prefix) ~> (command | code)
-
   def hostname: Parser[String] = repsep("""[a-zA-Z0-9\-]+""".r, ".") ^^ { _.mkString(".") }
 
   def servername = hostname
@@ -56,6 +63,8 @@ class IRCParser extends RegexParsers {
   def channel: Parser[String] = """(#|&)""".r ~> """[^\s,]+""".r
 
   def channels: Parser[Seq[String]] = repsep(channel, comma)
+
+  def ping = """PING.*""".r ^^ { case s => PING }
 
   def quit: Parser[QUIT] = "QUIT" ~> opt(" :" ~> """(.*)""".r) ^^ { QUIT(_) }
 
@@ -96,37 +105,48 @@ class IRCParser extends RegexParsers {
   def privmsg: Parser[PRIVMSG] = "PRIVMSG " ~> repsep(nickname | channel, comma) ~ (whitespace ~> opt(":") ~> """.+""".r) ^^ {
     case target ~ msg => PRIVMSG(target, msg)
   }
+
+  def apply(buffer: String) = {
+    parseAll(message, buffer) match {
+      case Success(cmd, _)    => cmd
+      case failure: NoSuccess => sys.error(failure.msg)
+    }
+  }
 }
 
 
-sealed abstract class Command
+object IRCCommands {
+  sealed abstract class Command
 
-case class UNKNOWN(cmd: String, params: Option[String]) extends Command
+  case class UNKNOWN(cmd: String, params: Option[String]) extends Command
 
-case class CODE(code: String, params: Seq[String]) extends Command
+  case class CODE(code: String, params: Seq[String]) extends Command
 
-case class QUIT(msg: Option[String]) extends Command
+  case object PING extends Command
 
-case class AWAY(msg: Option[String]) extends Command
+  case class QUIT(msg: Option[String]) extends Command
 
-case class MODE(target: String, modeSpec: String) extends Command
+  case class AWAY(msg: Option[String]) extends Command
 
-case class PASS(password: String) extends Command
+  case class MODE(target: String, modeSpec: String) extends Command
 
-case class NICK(nick: String) extends Command
+  case class PASS(password: String) extends Command
 
-case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
+  case class NICK(nick: String) extends Command
 
-case class JOIN(channels: Seq[(String, Option[String])]) extends Command
+  case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
 
-case class LIST(channels: Option[Seq[String]]) extends Command
+  case class JOIN(channels: Seq[(String, Option[String])]) extends Command
 
-case class WHO(channel: Option[String]) extends Command
+  case class LIST(channels: Option[Seq[String]]) extends Command
 
-case class PART(channels: Seq[String]) extends Command
+  case class WHO(channel: Option[String]) extends Command
 
-case class TOPIC(channel: String, title: Option[String]) extends Command
+  case class PART(channels: Seq[String]) extends Command
 
-case class NAMES(channels: Seq[String]) extends Command
+  case class TOPIC(channel: String, title: Option[String]) extends Command
 
-case class PRIVMSG(target: Seq[String], msg: String) extends Command
+  case class NAMES(channels: Seq[String]) extends Command
+
+  case class PRIVMSG(target: Seq[String], msg: String) extends Command
+}
