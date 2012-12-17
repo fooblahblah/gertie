@@ -12,13 +12,13 @@ object ResponseHandler {
   import Commands._
 
   def apply(log: LoggingAdapter): PipelineStage = {
-
     new PipelineStage {
       def build(context: PipelineContext, commandPL: CPL, eventPL: EPL): Pipelines = new Pipelines {
 
         val commandPipeline: CPL = {
-          case PONG =>
-            commandPL(IOPeer.Send(ByteBuffer.wrap(s"$PONG$CRLF".getBytes), None))
+          case cmd: Reply =>
+            log.info(s"gertie -> $cmd")
+            commandPL(IOPeer.Send(ByteBuffer.wrap(s"$cmd".getBytes), None))
 
           case cmd =>
             commandPL(cmd)

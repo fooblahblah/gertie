@@ -54,6 +54,7 @@ class IRCParserSpec extends Specification {
 
     "handle USER" in {
       parser("USER jsimpson fugazi localhost :Jeff Simpson") === USER("jsimpson", "fugazi", "localhost", "Jeff Simpson")
+      parser("USER fooblahblah 8 * :Jeff Simpson") === USER("fooblahblah", "8", "*", "Jeff Simpson")
     }
 
     "handle JOIN" in {
@@ -76,7 +77,7 @@ class IRCParserSpec extends Specification {
 
     "handle WHO" in {
       parser("WHO") === WHO(None)
-      parser("WHO #boulder") === WHO(Some("boulder"))
+      parser("WHO boulder") === WHO(Some("boulder"))
     }
 
     "handle TOPIC" in {
