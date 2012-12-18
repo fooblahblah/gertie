@@ -6,11 +6,13 @@ import org.fooblahblah.bivouac.Bivouac
 import org.fooblahblah.bivouac.model.Model._
 import org.fooblahblah.gertie.parser._
 import org.fooblahblah.gertie.util.Utils._
+import scala.collection.mutable.{Set => MutableSet, HashMap => MutableMap}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import spray.io._
 import spray.util._
 import IRCCommands.{Command => IRCCommand}
+import spray.io.IOBridge.Closed
 
 object CommandHandler {
   import IRCCommands._
@@ -24,11 +26,14 @@ object CommandHandler {
 
         var campfireClient: Option[Bivouac] = None
 
-        var domain:       Option[String] = None
-        var host:         Option[String] = None
-        var nick:         Option[String] = None
-        var apiKey:       Option[String] = None
-        var username:     Option[String] = None
+        var domain:   Option[String] = None
+        var host:     Option[String] = None
+        var nick:     Option[String] = None
+        var apiKey:   Option[String] = None
+        var username: Option[String] = None
+
+        val joinedChannels: MutableSet[String]       = MutableSet()
+        val channelCache:   MutableMap[String, Room] = MutableMap()
 
         implicit def optStrToString(opt: Option[String]): String = opt.getOrElse("<unknown>")
 
@@ -70,6 +75,7 @@ object CommandHandler {
                     updateNick(user)
                     sendWelcome
                     sendMOTD
+                    updateChannelCache
                   } orElse {
                     commandPL(NumericReply(Errors.ERR_PASSWDMISMATCH, nick, "AUTH *** could not connect to campfire:  invalid API key. ***"))
                     commandPL(IOPeer.Close(ConnectionCloseReasons.CleanClose))
@@ -86,8 +92,33 @@ object CommandHandler {
             case LIST(channels) =>
               list(channels)
 
-//            case TOPIC(channel, topic) =>
-//              topic
+
+            case JOIN(channels) =>
+              campfireClient.map { client =>
+                channels.foreach { chanPair =>
+                  channelCache.get(chanPair._1) map { room =>
+                    val (name, key) = chanPair
+                    if(!joinedChannels.contains(name)) {
+                      joinedChannels += name
+                      client.join(room.id)
+                    }
+                  }
+                }
+              }
+
+
+            case PART(channels) =>
+              campfireClient.map { client =>
+                channels.foreach { name =>
+                  channelCache.get(name) map { room =>
+                    if(joinedChannels.contains(name)) {
+                      log.info(s"Leaving $name")
+                      joinedChannels -= name
+                      client.leave(room.id)
+                    }
+                  }
+                }
+              }
 
 
             case cmd  =>
@@ -100,7 +131,21 @@ object CommandHandler {
         }
 
 
-        val eventPipeline: EPL = eventPL
+        val eventPipeline: EPL = {
+          case e: Closed =>
+            campfireClient.map { client =>
+              joinedChannels.foreach { name =>
+                channelCache.get(name) map { room =>
+                  log.info(s"Leaving $name")
+                  client.leave(room.id)
+                }
+              }
+            }
+            eventPL(e)
+
+          case e =>
+            eventPL(e)
+        }
 
 
         def me(): Future[Option[User]] = {
@@ -112,19 +157,29 @@ object CommandHandler {
 
         def list(channels: Option[Seq[String]]) = {
           campfireClient.foreach { client =>
+            channelCache map { kv =>
+              val (name, room) = kv
+              commandPL(NumericReply(Replies.RPL_LIST, s"${nick} #${name} ${room.users.getOrElse(Nil).length}", room.topic))
+            }
+            commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
+          }
+        }
+
+        def updateChannelCache {
+          campfireClient.foreach { client =>
+            channelCache.clear
             client.rooms map { rooms =>
               rooms map { room =>
                 client.room(room.id) map { room =>
                   room foreach { room =>
-                    commandPL(NumericReply(Replies.RPL_LIST, s"${nick} #${room.name} ${room.users.getOrElse(Nil).length}", room.topic))
+                    channelCache += ((ircName(room.name), room))
                   }
                 }
               }
-            } map { _ =>
-              commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
             }
           }
         }
+
 
         def updateNick(user: User) {
           val name = ircName(user.name)
