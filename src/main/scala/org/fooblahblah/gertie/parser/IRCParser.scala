@@ -94,7 +94,7 @@ object IRCParser extends RegexParsers {
 
   def list: Parser[LIST] = "LIST" ~> opt(whitespace ~> channels) ^^ { LIST(_) }
 
-  def part: Parser[PART] = "PART" ~> whitespace ~> channels ^^ { PART(_) }
+  def part: Parser[PART] = "PART" ~> whitespace ~> channels <~ """.*""".r ^^ { PART(_) }
 
   def topic: Parser[TOPIC] = "TOPIC" ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
 

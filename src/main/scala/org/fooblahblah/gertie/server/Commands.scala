@@ -11,10 +11,15 @@ object Commands {
 
   implicit def parseCmdtoSpray(cmd: IRCCommand): Command = WrappedCommand(cmd)
 
+
   trait Reply extends Command
 
   case object PONG extends Reply {
     override def toString() = s"PONG${CRLF}"
+  }
+
+  case class CampfireReply(command: String, username: String, msg: String) extends Reply {
+    override def toString() = s":${username}!${username}@campfire ${command.toUpperCase} ${msg}${CRLF}"
   }
 
   case class CommandReply(prefix: String, msg: String) extends Reply {
@@ -29,6 +34,11 @@ object Commands {
     override def toString() = s"${msg}$CRLF"
   }
 
+  case class UserReply(user: String, nick: String, host: String, command: String, msg: String) extends Reply {
+    override def toString() = s":${nick}!${user}@${host} ${command.toUpperCase()} ${msg}$CRLF"
+  }
+
+
   object Replies {
     val WELCOME       = 001
 
@@ -38,6 +48,7 @@ object Commands {
     val RPL_LIST      = 322
     val RPL_LISTEND   = 323
 
+    val RPL_NO_TOPIC  = 331
     val RPL_TOPIC     = 332
 
     val MOTDSTART     = 375
@@ -45,6 +56,7 @@ object Commands {
     val ENDOFMOTD     = 376
 
   }
+
 
   object Errors {
     val NEEDMOREPARAMS     = 461
