@@ -27,7 +27,7 @@ object Commands {
   }
 
   case class NumericReply(code: Int, target: String, msg: String = "") extends Reply {
-    override def toString() = s":gertie ${code} ${target} :${msg}${CRLF}"
+    override def toString() = s":gertie ${code} ${target} ${msg}${CRLF}"
   }
 
   case class RawReply(msg: String) extends Reply {
@@ -42,6 +42,8 @@ object Commands {
   object Replies {
     val WELCOME       = 001
 
+    val RPL_WHOREPLY  = 352
+    val RPL_NAMREPLY  = 353
     val RPL_ENDOFWHO  = 315
 
     val RPL_LISTSTART = 321

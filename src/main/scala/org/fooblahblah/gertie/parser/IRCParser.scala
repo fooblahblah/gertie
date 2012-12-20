@@ -98,7 +98,7 @@ object IRCParser extends RegexParsers {
 
   def topic: Parser[TOPIC] = "TOPIC" ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
 
-  def who: Parser[WHO] = "WHO" ~> opt(whitespace ~> """\S+""".r) ^^ { WHO(_) }
+  def who: Parser[WHO] = "WHO" ~> opt(whitespace ~> (channel | """\S+""".r)) ^^ { WHO(_) }
 
   def names: Parser[NAMES] = "NAMES" ~> whitespace ~> channels ^^ { NAMES(_) }
 
@@ -140,7 +140,7 @@ object IRCCommands {
 
   case class LIST(channels: Option[Seq[String]]) extends Command
 
-  case class WHO(mask: Option[String]) extends Command
+  case class WHO(channel: Option[String]) extends Command
 
   case class PART(channels: Seq[String]) extends Command
 

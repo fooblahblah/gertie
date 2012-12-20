@@ -31,6 +31,7 @@ object CommandHandler {
         var nick:     Option[String] = None
         var apiKey:   Option[String] = None
         var username: Option[String] = None
+        var myUserId: Option[Int]    = None
 
         val joinedChannels: MutableMap[String, ActorRef] = MutableMap()
         val channelCache:   MutableMap[String, Room]     = MutableMap()
@@ -44,14 +45,18 @@ object CommandHandler {
             case JOIN(channels) =>
               campfireClient.map { client =>
                 channels.foreach { chanPair =>
-                  channelCache.get(chanPair._1) map { room =>
-                    val (name, key) = chanPair
-                    if(!joinedChannels.contains(name)) {
+                  val (chanName, key) = chanPair
+                  channelCache.get(chanName) map { room =>
+                    if(!joinedChannels.contains(chanName)) {
                       client.join(room.id) foreach { joined =>
-                        val ref = client.live(room.id, handleStreamEvent(name))
-                        joinedChannels += ((name, ref))
-                        commandPL(UserReply(username, nick, host, "JOIN", s":#${name}"))
-                        commandPipeline(WrappedCommand(TOPIC(name, None)))
+                        val ref = client.live(room.id, handleStreamEvent(chanName))
+                        joinedChannels += ((chanName, ref))
+                        commandPL(UserReply(username, nick, host, "JOIN", s":#${chanName}"))
+                        commandPipeline(WrappedCommand(TOPIC(chanName, None)))
+
+                        room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
+                          commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
+                        }
                       }
                       // TODO: Send names list
                     }
@@ -64,7 +69,7 @@ object CommandHandler {
               campfireClient.foreach { client =>
                 channelCache.toList.sortBy(_._1) foreach { kv =>
                   val (name, room) = kv
-                  commandPL(NumericReply(Replies.RPL_LIST, s"${nick} #${name} ${room.users.getOrElse(Nil).length}", room.topic))
+                  commandPL(NumericReply(Replies.RPL_LIST, nick, s"#${name} ${room.users.getOrElse(Nil).length} :${room.topic}"))
                 }
                 commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
               }
@@ -100,7 +105,7 @@ object CommandHandler {
                   apiKey = Some(tok)
 
                 case _ =>
-                  commandPL(NumericReply(Errors.NEEDMOREPARAMS, nick, "must specify a password: subdomain:api_key"))
+                  commandPL(NumericReply(Errors.NEEDMOREPARAMS, nick, ":must specify a password: subdomain:api_key"))
                   commandPL(IOPeer.Close(ConnectionCloseReasons.CleanClose))
               }
 
@@ -122,17 +127,19 @@ object CommandHandler {
                 commandPL(IOPeer.Close(ConnectionCloseReasons.CleanClose))
               } else {
                 username       = Some(user_)
-                host           = Some(host_)
+                host           = Some(context.connection.remoteAddress.getHostName())
                 campfireClient = Some(Bivouac(domain, apiKey))
 
                 me map { me =>
                   me.map { user =>
-                    updateChannelCache
-                    updateNick(user)
-                    sendWelcome
-                    sendMOTD
+                    myUserId = Some(user.id)
+                    updateChannelCache map { _ =>
+                      updateNick(user)
+                      sendWelcome
+                      sendMOTD
+                    }
                   } orElse {
-                    commandPL(NumericReply(Errors.ERR_PASSWDMISMATCH, nick, "AUTH *** could not connect to campfire:  invalid API key. ***"))
+                    commandPL(NumericReply(Errors.ERR_PASSWDMISMATCH, nick, ":AUTH *** could not connect to campfire:  invalid API key. ***"))
                     commandPL(IOPeer.Close(ConnectionCloseReasons.CleanClose))
                     None
                   }
@@ -151,19 +158,32 @@ object CommandHandler {
                       client.updateRoomTopic(room.id, title) map { status =>
                         if(status) {
                           channelCache += ((channel, room.copy(topic = title)))
-                          commandPL(NumericReply(Replies.RPL_TOPIC, target, title))
+                          commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${title}"))
                         }
                       }
 
                     case _ =>
-                      commandPL(NumericReply(Replies.RPL_TOPIC, target, room.topic))
+                      commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${room.topic}"))
                   }
                 }
               }
 
 
-            case WHO(mask) =>
-              commandPL(NumericReply(Replies.RPL_ENDOFWHO, nick, "End of WHO list"))
+            case WHO(channelOpt) =>
+              channelOpt map { channel =>
+                channelCache.get(channel) map { room =>
+                  room.users map {
+                    _.foreach { user =>
+                      val (account, domain) = user.email.split("@").toList match {
+                        case account :: domain :: Nil => (account, domain)
+                        case _                        => ("unknown", "unknown")
+                      }
+                      commandPL(NumericReply(Replies.RPL_WHOREPLY, nick, s"#${channel} ${account} ${domain} gertie ${ircName(user.name)} H@ :0 #${user.name}"))
+                    }
+                  }
+                }
+              }
+              commandPL(NumericReply(Replies.RPL_ENDOFWHO, nick, ":End of WHO list"))
 
 
             case cmd  =>
@@ -196,33 +216,43 @@ object CommandHandler {
 
 
         def handleStreamEvent(channel: String)(msg: Message) {
-           msg.messageType match {
-             case "EnterMessage" =>
-               log.info(msg.toString)
-               campfireClient map {client =>
-                 msg.userId foreach { userId =>
-                   client.user(userId) foreach { userOpt =>
-                     userOpt foreach { user =>
-                       channelCache.get(channel) foreach { room =>
-                          room.copy(users = room.users.map(_ :+ user))
-                       }
-                     }
-                   }
-                 }
-               }
+          msg.messageType match {
+            case "EnterMessage" =>
+              log.info(msg.toString)
+              campfireClient map {client =>
+                msg.userId foreach { userId =>
+                  client.user(userId) foreach { userOpt =>
+                    userOpt foreach { user =>
+                      channelCache.get(channel) foreach { room =>
+                        log.info(s"${user.name} entered room")
+                        channelCache += ((channel, room.copy(users = room.users.map(_ :+ user))))
+                      }
+                    }
+                  }
+                }
+              }
 
-             case "LeaveMessage" =>
-               log.info(msg.toString)
-               channelCache.get(channel) foreach { room =>
-                 room.copy(users = room.users.map(_.filterNot(user => user.id == msg.userId.getOrElse(0))))
-               }
+            case "LeaveMessage" =>
+              log.info(msg.toString)
+              channelCache.get(channel) foreach { room =>
+                val userId = msg.userId.getOrElse(0)
+                log.info(s"${userById(userId, channel)} left room")
+                channelCache += ((channel, room.copy(users = room.users.map(_.filterNot(user => user.id == userId)))))
+              }
 
-             case "TextMessage" =>
-               commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
+            case "TextMessage" =>
+              if(myUserId != msg.userId)
+                commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
 
-             case _ =>
-               log.info(msg.toString)
-           }
+            case "KickMessage" => //NOOP
+
+            case "TimestampMessage" => //NOOP
+
+            case _ =>
+              log.info(msg.toString)
+              if(myUserId != msg.userId)
+                commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
+          }
         }
 
 
@@ -234,22 +264,22 @@ object CommandHandler {
 
 
         def sendWelcome() {
-          commandPL(NumericReply(Replies.WELCOME, nick, "Welcome to Gertie, the IRC/Campfire bridge!"))
+          commandPL(NumericReply(Replies.WELCOME, nick, ":Welcome to Gertie, the IRC/Campfire bridge!"))
         }
 
 
         def sendMOTD() {
-          commandPL(NumericReply(Replies.MOTDSTART, nick, "- gertie Message of the day -"))
-          commandPL(NumericReply(Replies.MOTD, nick, "- It's always sunny in Boulder!"))
-          commandPL(NumericReply(Replies.ENDOFMOTD, nick, "End of /MOTD command"))
+          commandPL(NumericReply(Replies.MOTDSTART, nick, ":- gertie Message of the day -"))
+          commandPL(NumericReply(Replies.MOTD, nick, ":- It's always sunny in Boulder!"))
+          commandPL(NumericReply(Replies.ENDOFMOTD, nick, ":End of /MOTD command"))
         }
 
 
-        def updateChannelCache {
-          campfireClient.foreach { client =>
+        def updateChannelCache: Future[Unit] = {
+          campfireClient map { client =>
             channelCache.clear
             client.rooms map { rooms =>
-              rooms map { room =>
+              rooms foreach { room =>
                 client.room(room.id) map { room =>
                   room foreach { room =>
                     channelCache += ((ircName(room.name), room))
@@ -257,7 +287,7 @@ object CommandHandler {
                 }
               }
             }
-          }
+          } getOrElse(Future())
         }
 
 
@@ -275,7 +305,7 @@ object CommandHandler {
             channel.users.flatMap { users =>
               users.filter(u => u.id == userId).headOption.map(u => ircName(u.name))
             }
-          } getOrElse("unknown")
+          } getOrElse(userId.toString)
         }
       }
     }

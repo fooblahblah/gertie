@@ -12,13 +12,13 @@ import spray.io._
 
 
 object Main extends App {
-  implicit val system = ActorSystem("gertie-server")
-
+  implicit val system      = ActorSystem("gertie-server")
   implicit val akkaTimeout = Timeout(1 second)
 
   val logger = Logging(system, "Gertie")
 
   val port = 6668
+  val addr = "localhost"
 
   val ioBridge = IOExtension(system).ioBridge
 
@@ -28,7 +28,7 @@ object Main extends App {
   )
 
   server
-    .ask(IOServer.Bind("localhost", port))
+    .ask(IOServer.Bind(addr, port))
     .onSuccess { case IOServer.Bound(endpoint, _) =>
     logger.info(s"Bound gertie-server to ${endpoint}")
     logger.info(s"Press ctrl-c to quit...")

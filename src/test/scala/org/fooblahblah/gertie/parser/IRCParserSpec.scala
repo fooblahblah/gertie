@@ -77,7 +77,8 @@ class IRCParserSpec extends Specification {
 
     "handle WHO" in {
       parser("WHO") === WHO(None)
-      parser("WHO boulder") === WHO(Some("boulder"))
+      parser("WHO fooblahblah") === WHO(Some("fooblahblah"))
+      parser("WHO #boulder") === WHO(Some("boulder"))
     }
 
     "handle TOPIC" in {

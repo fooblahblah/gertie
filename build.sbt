@@ -1,10 +1,12 @@
+seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
+
 name := "gertie"
 
 organization := "org.fooblahblah"
 
 version := "0.1.0-SNAPSHOT"
 
-scalaVersion := "2.10.0-RC3"
+scalaVersion := "2.10.0-RC5"
 
 resolvers ++= Seq(
           "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -13,10 +15,10 @@ resolvers ++= Seq(
           "releases"  at "http://oss.sonatype.org/content/repositories/releases")
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka" %  "akka-actor_2.10.0-RC3" % "2.1.0-RC3",
+  "com.typesafe.akka" %  "akka-actor_2.10.0-RC5" % "2.1.0-RC6",
   "io.spray"          %  "spray-io"              % "1.1-M6",
   "junit"             %  "junit"                 % "4.10" % "test",
-  "org.specs2"        %  "specs2_2.10.0-RC3"     % "1.13-SNAPSHOT" % "test",
+  "org.specs2"        %  "specs2_2.10.0-RC5"     % "1.13-SNAPSHOT" % "test",
   "org.fooblahblah"   %% "bivouac"               % "1.0.0"
 )
 
