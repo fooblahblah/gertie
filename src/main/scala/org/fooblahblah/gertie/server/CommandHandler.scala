@@ -246,6 +246,8 @@ object CommandHandler {
                 }
               }
 
+            case "KickMessage" => //NOOP
+
             case "LeaveMessage" =>
               log.info(msg.toString)
               channelCache.get(channel) foreach { room =>
@@ -254,11 +256,19 @@ object CommandHandler {
                 channelCache += ((channel, room.copy(users = room.users.map(_.filterNot(user => user.id == userId)))))
               }
 
+            case "PasteMessage" =>
+              val lines = msg.body.split("\n")
+
+              lines.take(3) foreach { line =>
+                commandPL(CampfireReply("PRIVMSG", username, s"#${channel} :> ${line}"))
+              }
+
+              if(lines.length > 3)
+                commandPL(CampfireReply("PRIVMSG", username, s"#${channel} :> more: https://${domain.getOrElse("bogus")}.campfirenow.com/room/${msg.roomId}/paste/${msg.id}"))
+
             case "TextMessage" =>
               if(myUserId != msg.userId)
                 commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
-
-            case "KickMessage" => //NOOP
 
             case "TimestampMessage" => //NOOP
 
