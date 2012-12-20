@@ -32,6 +32,10 @@ class IRCParserSpec extends Specification {
       parser("PING") === PING
     }
 
+    "handle lowercase command" in {
+      parser("ping") === PING
+    }
+
     "handle AWAY" in {
       parser("AWAY") === AWAY(None)
       parser("AWAY :out to lunch") === AWAY(Some("out to lunch"))
@@ -96,6 +100,10 @@ class IRCParserSpec extends Specification {
       val msg = "This is a test"
       parser(s"PRIVMSG #boulder :$msg") === PRIVMSG(Seq("boulder"), msg)
       parser(s"PRIVMSG #boulder blah") === PRIVMSG(Seq("boulder"), "blah")
+    }
+
+    "handle HISTORY" in {
+      parser("HISTORY #boulder") === HISTORY("boulder")
     }
   }
 }

@@ -14,19 +14,20 @@ object IRCParser extends RegexParsers {
 
   def command: Parser[Command] = (
     pass
-    | nick
-    | user
-    | quit
     | away
-    | mode
+    | history
     | join
     | list
-    | part
-    | who
-    | topic
+    | mode
     | names
+    | nick
+    | part
     | privmsg
     | ping
+    | quit
+    | topic
+    | user
+    | who
     | unknown
   )
 
@@ -64,25 +65,25 @@ object IRCParser extends RegexParsers {
 
   def channels: Parser[Seq[String]] = repsep(channel, comma)
 
-  def ping = """PING.*""".r ^^ { case s => PING }
+  def ping = """(?i)PING.*""".r ^^ { case s => PING }
 
-  def quit: Parser[QUIT] = "QUIT" ~> opt(" :" ~> """(.*)""".r) ^^ { QUIT(_) }
+  def quit: Parser[QUIT] = "(?i)QUIT".r ~> opt(" :" ~> """(.*)""".r) ^^ { QUIT(_) }
 
-  def mode: Parser[MODE] = "MODE " ~> (channel | nickname) ~ (whitespace ~> opt("+" | "-") ~> ("o" | "p" | "s" | "i" | "t" | "n" | "b" | "v")) <~ """\s*.*""".r ^^ {
+  def mode: Parser[MODE] = "(?i)MODE".r ~> whitespace ~> (channel | nickname) ~ (whitespace ~> opt("+" | "-") ~> ("o" | "p" | "s" | "i" | "t" | "n" | "b" | "v")) <~ """\s*.*""".r ^^ {
     case target ~ spec => MODE(target, spec)
   }
 
-  def away: Parser[AWAY] = "AWAY" ~> opt(" :" ~> """(.*)""".r) ^^ { AWAY(_) }
+  def away: Parser[AWAY] = "(?i)AWAY".r ~> opt(" :" ~> """(.*)""".r) ^^ { AWAY(_) }
 
-  def pass: Parser[PASS] = "PASS " ~> """(.*)""".r ^^ { PASS(_) }
+  def pass: Parser[PASS] = "(?i)PASS".r ~> whitespace ~> """(.*)""".r ^^ { PASS(_) }
 
-  def nick: Parser[NICK] = "NICK " ~> nickname <~ opt(""".*""".r) ^^ { NICK(_) }
+  def nick: Parser[NICK] = "(?i)NICK".r ~> whitespace ~> nickname <~ opt(""".*""".r) ^^ { NICK(_) }
 
-  def user: Parser[USER] = "USER " ~> """[^\s]+""".r ~ " " ~ hostname ~ " " ~ servername ~ " :" ~ """.+""".r ^^ {
+  def user: Parser[USER] = "(?i)USER ".r ~> """[^\s]+""".r ~ " " ~ hostname ~ " " ~ servername ~ " :" ~ """.+""".r ^^ {
     case username ~ _ ~ host ~ _ ~ server ~ _ ~ real => USER(username, host, server, real)
   }
 
-  def join: Parser[JOIN] = "JOIN " ~> channels ~ opt(whitespace ~> repsep("""[^,]+""".r, """,\s*""".r)) ^^ { case chans ~ keys =>
+  def join: Parser[JOIN] = "(?i)JOIN".r ~> whitespace ~> channels ~ opt(whitespace ~> repsep("""[^,]+""".r, """,\s*""".r)) ^^ { case chans ~ keys =>
     def padding = 1 to (chans.length - keys.getOrElse(Nil).length) map (i => None)
 
     val paddedKeys = keys map { k =>
@@ -92,17 +93,19 @@ object IRCParser extends RegexParsers {
     JOIN(chans.zip(paddedKeys))
   }
 
-  def list: Parser[LIST] = "LIST" ~> opt(whitespace ~> channels) ^^ { LIST(_) }
+  def list: Parser[LIST] = "(?i)LIST".r ~> opt(whitespace ~> channels) ^^ { LIST(_) }
 
-  def part: Parser[PART] = "PART" ~> whitespace ~> channels <~ """.*""".r ^^ { PART(_) }
+  def part: Parser[PART] = "(?i)PART".r ~> whitespace ~> channels <~ """.*""".r ^^ { PART(_) }
 
-  def topic: Parser[TOPIC] = "TOPIC" ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
+  def topic: Parser[TOPIC] = "(?i)TOPIC".r ~> whitespace ~> channel ~ opt(whitespace ~> opt(":") ~> """.+""".r) ^^ { case chan ~ title => TOPIC(chan, title) }
 
-  def who: Parser[WHO] = "WHO" ~> opt(whitespace ~> (channel | """\S+""".r)) ^^ { WHO(_) }
+  def who: Parser[WHO] = "(?i)WHO".r ~> opt(whitespace ~> (channel | """\S+""".r)) ^^ { WHO(_) }
 
-  def names: Parser[NAMES] = "NAMES" ~> whitespace ~> channels ^^ { NAMES(_) }
+  def names: Parser[NAMES] = "(?i)NAMES".r ~> whitespace ~> channels ^^ { NAMES(_) }
 
-  def privmsg: Parser[PRIVMSG] = "PRIVMSG " ~> repsep(nickname | channel, comma) ~ (whitespace ~> opt(":") ~> """.+""".r) ^^ {
+  def history: Parser[HISTORY] = "(?i)HISTORY".r ~> whitespace ~> channel ^^ { HISTORY(_) }
+
+  def privmsg: Parser[PRIVMSG] = "(?i)PRIVMSG".r ~> whitespace ~> repsep(nickname | channel, comma) ~ (whitespace ~> opt(":") ~> """.+""".r) ^^ {
     case target ~ msg => PRIVMSG(target, msg)
   }
 
@@ -118,35 +121,37 @@ object IRCParser extends RegexParsers {
 object IRCCommands {
   sealed abstract class Command
 
-  case class UNKNOWN(cmd: String, params: Option[String]) extends Command
-
-  case class CODE(code: String, params: Seq[String]) extends Command
-
   case object PING extends Command
-
-  case class QUIT(msg: Option[String]) extends Command
 
   case class AWAY(msg: Option[String]) extends Command
 
-  case class MODE(target: String, modeSpec: String) extends Command
+  case class CODE(code: String, params: Seq[String]) extends Command
 
-  case class PASS(password: String) extends Command
-
-  case class NICK(nick: String) extends Command
-
-  case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
+  case class HISTORY(channel: String) extends Command
 
   case class JOIN(channels: Seq[(String, Option[String])]) extends Command
 
   case class LIST(channels: Option[Seq[String]]) extends Command
 
-  case class WHO(channel: Option[String]) extends Command
-
-  case class PART(channels: Seq[String]) extends Command
-
-  case class TOPIC(channel: String, title: Option[String]) extends Command
+  case class MODE(target: String, modeSpec: String) extends Command
 
   case class NAMES(channels: Seq[String]) extends Command
 
+  case class NICK(nick: String) extends Command
+
+  case class PART(channels: Seq[String]) extends Command
+
+  case class PASS(password: String) extends Command
+
   case class PRIVMSG(target: Seq[String], msg: String) extends Command
+
+  case class QUIT(msg: Option[String]) extends Command
+
+  case class TOPIC(channel: String, title: Option[String]) extends Command
+
+  case class UNKNOWN(cmd: String, params: Option[String]) extends Command
+
+  case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
+
+  case class WHO(channel: Option[String]) extends Command
 }

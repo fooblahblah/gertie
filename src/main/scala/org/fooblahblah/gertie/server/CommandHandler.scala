@@ -42,6 +42,18 @@ object CommandHandler {
 
           case WrappedCommand(cmd) => cmd match {
 
+            case HISTORY(channel) =>
+              campfireClient foreach { client =>
+                channelCache.get(channel) foreach { room =>
+                  client.recentMessages(room.id) foreach {
+                    _ foreach { msg =>
+                      handleStreamEvent(channel)(msg)
+                    }
+                  }
+                }
+              }
+
+
             case JOIN(channels) =>
               campfireClient.map { client =>
                 channels.foreach { chanPair =>
@@ -51,14 +63,16 @@ object CommandHandler {
                       client.join(room.id) foreach { joined =>
                         val ref = client.live(room.id, handleStreamEvent(chanName))
                         joinedChannels += ((chanName, ref))
+
                         commandPL(UserReply(username, nick, host, "JOIN", s":#${chanName}"))
                         commandPipeline(WrappedCommand(TOPIC(chanName, None)))
 
                         room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
                           commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
                         }
+
+                        commandPipeline(WrappedCommand(HISTORY(chanName)))
                       }
-                      // TODO: Send names list
                     }
                   }
                 }
