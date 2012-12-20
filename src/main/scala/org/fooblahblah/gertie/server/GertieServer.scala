@@ -4,21 +4,24 @@ import akka.actor.{ActorRef, Props, ActorSystem}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
+import com.typesafe.config._
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit._
 import scala.concurrent.duration._
-import spray.util._
 import spray.io._
+import spray.util._
 
 
 object Main extends App {
   implicit val system      = ActorSystem("gertie-server")
   implicit val akkaTimeout = Timeout(1 second)
 
+  val config = ConfigFactory.load()
+
   val logger = Logging(system, "Gertie")
 
-  val port = 6668
-  val addr = "localhost"
+  val iface = config.getString("gertie.interface")
+  val port  = config.getInt("gertie.port")
 
   val ioBridge = IOExtension(system).ioBridge
 
@@ -28,7 +31,7 @@ object Main extends App {
   )
 
   server
-    .ask(IOServer.Bind(addr, port))
+    .ask(IOServer.Bind(iface, port))
     .onSuccess { case IOServer.Bound(endpoint, _) =>
     logger.info(s"Bound gertie-server to ${endpoint}")
     logger.info(s"Press ctrl-c to quit...")
