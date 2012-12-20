@@ -6,4 +6,7 @@ http://en.wikipedia.org/wiki/Tacoma_Narrows_Bridge_(1940)
 
 Hopefully this bridge is more stable :)
 
+To create an executable image, rn ./release.sh.  This will create a timestamped gertie exe and a symlink.  Both should be executable.
+
 Credit: To @aniero for https://github.com/aniero/camper_van, which I used heavily as a reference.
+
