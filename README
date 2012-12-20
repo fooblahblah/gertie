@@ -8,7 +8,7 @@ Hopefully this bridge is more stable :)
 
 To create an executable image:
 
-$ ./release.sh.  
+$ ./release.sh
 
 This will create a timestamped gertie executable image and a symlink.  Both should be executable.
 
