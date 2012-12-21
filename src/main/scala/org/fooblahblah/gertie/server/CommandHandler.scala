@@ -8,6 +8,7 @@ import org.fooblahblah.bivouac.model.Model._
 import org.fooblahblah.gertie.parser._
 import org.fooblahblah.gertie.util.Utils._
 import scala.collection.mutable.{Set => MutableSet, HashMap => MutableMap}
+import scala.annotation._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -24,14 +25,25 @@ object CommandHandler {
     new PipelineStage {
       def build(context: PipelineContext, commandPL: CPL, eventPL: EPL): Pipelines = new Pipelines {
 
-        var campfireClient: Option[Bivouac] = None
-
         var domain:   Option[String] = None
         var host:     Option[String] = None
         var nick:     Option[String] = None
         var apiKey:   Option[String] = None
         var username: Option[String] = None
         var myUserId: Option[Int]    = None
+
+        lazy val client: Bivouac = {
+          domain flatMap { dom =>
+            apiKey map { key =>
+              Bivouac(dom, key)
+            }
+          } getOrElse {
+            commandPL(NumericReply(Errors.NEEDMOREPARAMS, "unknown", ":must specify a password: subdomain:api_key"))
+            commandPL(IOPeer.Close(ConnectionCloseReasons.CleanClose))
+            sys.error("Domain and apiKey must be defined before using the campfire client")
+          }
+        }
+
 
         val channelCache:    MutableMap[String, Room]     = MutableMap()
         val joinedChannels:  MutableMap[String, ActorRef] = MutableMap()
@@ -44,42 +56,37 @@ object CommandHandler {
           case WrappedCommand(cmd) => cmd match {
 
             case HISTORY(channel) =>
-              campfireClient foreach { client =>
-                channelCache.get(channel) foreach { room =>
-                  client.recentMessages(room.id) map { l =>
-                    val msgs = l.filterNot(msg => msg.messageType == "EnterMessage" || msg.messageType == "LeaveMessage")
+              channelCache.get(channel) foreach { room =>
+                client.recentMessages(room.id) map { l =>
+                  val msgs = l.filterNot(msg => msg.messageType == "EnterMessage" || msg.messageType == "LeaveMessage")
 
-                    def processMsgs(msgs: List[Message]): Future[Unit] = msgs match {
-                      case msg :: ms => handleStreamEvent(channel)(msg) andThen { case _ => processMsgs(ms) }
-                      case _         => Future.successful(Unit)
-                    }
-
-                    processMsgs(msgs)
+                  def processMsgs(msgs: List[Message]): Future[Unit] = msgs match {
+                    case msg :: ms => handleStreamEvent(channel)(msg) flatMap(_ => processMsgs(ms))
+                    case _         => Future.successful()
                   }
-                }
 
+                  processMsgs(msgs)
+                }
               }
 
 
             case JOIN(channels) =>
-              campfireClient.map { client =>
-                channels.foreach { chanPair =>
-                  val (chanName, key) = chanPair
-                  channelCache.get(chanName) map { room =>
-                    if(!joinedChannels.contains(chanName)) {
-                      client.join(room.id) foreach { joined =>
-                        val ref = client.live(room.id, handleStreamEvent(chanName))
-                        joinedChannels += ((chanName, ref))
+              channels.foreach { chanPair =>
+                val (chanName, key) = chanPair
+                channelCache.get(chanName) map { room =>
+                  if(!joinedChannels.contains(chanName)) {
+                    client.join(room.id) foreach { joined =>
+                      val ref = client.live(room.id, handleStreamEvent(chanName))
+                      joinedChannels += ((chanName, ref))
 
-                        commandPL(UserReply(username, nick, host, "JOIN", s":#${chanName}"))
-                        commandPipeline(WrappedCommand(TOPIC(chanName, None)))
+                      commandPL(UserReply(username, nick, host, "JOIN", s":#${chanName}"))
+                      commandPipeline(WrappedCommand(TOPIC(chanName, None)))
 
-                        room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
-                          commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
-                        }
-
-                        commandPipeline(WrappedCommand(HISTORY(chanName)))
+                      room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
+                        commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
                       }
+
+                      commandPipeline(WrappedCommand(HISTORY(chanName)))
                     }
                   }
                 }
@@ -87,13 +94,11 @@ object CommandHandler {
 
 
             case LIST(channels) =>
-              campfireClient.foreach { client =>
-                channelCache.toList.sortBy(_._1) foreach { kv =>
-                  val (name, room) = kv
-                  commandPL(NumericReply(Replies.RPL_LIST, nick, s"#${name} ${room.users.getOrElse(Nil).length} :${room.topic}"))
-                }
-                commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
+              channelCache.toList.sortBy(_._1) foreach { kv =>
+                val (name, room) = kv
+                commandPL(NumericReply(Replies.RPL_LIST, nick, s"#${name} ${room.users.getOrElse(Nil).length} :${room.topic}"))
               }
+              commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
 
 
             case NICK(str) =>
@@ -105,15 +110,13 @@ object CommandHandler {
 
 
             case PART(channels) =>
-              campfireClient.map { client =>
-                channels.foreach { name =>
-                  channelCache.get(name) map { room =>
-                    joinedChannels.get(name) map { ref =>
-                      log.info(s"Leaving $name")
-                      joinedChannels -= name
-                      ref ! PoisonPill
-                      client.leave(room.id)
-                    }
+              channels.foreach { name =>
+                channelCache.get(name) map { room =>
+                  joinedChannels.get(name) map { ref =>
+                    log.info(s"Leaving $name")
+                    joinedChannels -= name
+                    ref ! PoisonPill
+                    client.leave(room.id)
                   }
                 }
               }
@@ -133,11 +136,9 @@ object CommandHandler {
 
             case PRIVMSG(channels, msg) =>
               // TODO: Handle PART 0 (leave all)
-              campfireClient map { client =>
-                channels foreach { channel =>
-                  channelCache.get(channel) map { room =>
-                    client.speak(room.id, msg)
-                  }
+              channels foreach { channel =>
+                channelCache.get(channel) map { room =>
+                  client.speak(room.id, msg)
                 }
               }
 
@@ -149,7 +150,6 @@ object CommandHandler {
               } else {
                 username       = Some(user_)
                 host           = Some(context.connection.remoteAddress.getHostName())
-                campfireClient = Some(Bivouac(domain, apiKey))
 
                 me map { me =>
                   me.map { user =>
@@ -170,22 +170,19 @@ object CommandHandler {
 
             case TOPIC(channel, titleOpt) =>
               val target = s"$nick #${channel}"
-
-              campfireClient map { client =>
-                channelCache.get(channel) map { room =>
-                  titleOpt match {
-                    case Some(title) =>
-                      log.info(s"Updating #${channel} topic: ${title}")
-                      client.updateRoomTopic(room.id, title) map { status =>
-                        if(status) {
-                          channelCache += ((channel, room.copy(topic = title)))
-                          commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${title}"))
-                        }
+              channelCache.get(channel) map { room =>
+                titleOpt match {
+                  case Some(title) =>
+                    log.info(s"Updating #${channel} topic: ${title}")
+                    client.updateRoomTopic(room.id, title) map { status =>
+                      if(status) {
+                        channelCache += ((channel, room.copy(topic = title)))
+                        commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${title}"))
                       }
+                    }
 
-                    case _ =>
-                      commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${room.topic}"))
-                  }
+                  case _ =>
+                    commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${room.topic}"))
                 }
               }
 
@@ -219,14 +216,12 @@ object CommandHandler {
 
         val eventPipeline: EPL = {
           case e: Closed =>
-            campfireClient.map { client =>
-              joinedChannels.foreach { pair =>
-                val (name, ref) = pair
-                channelCache.get(name) map { room =>
-                  log.info(s"Leaving $name")
-                  ref ! PoisonPill
-                  client.leave(room.id)
-                }
+            joinedChannels.foreach { pair =>
+              val (name, ref) = pair
+              channelCache.get(name) map { room =>
+                log.info(s"Leaving $name")
+                ref ! PoisonPill
+                client.leave(room.id)
               }
             }
             eventPL(e)
@@ -242,14 +237,12 @@ object CommandHandler {
 
             case "EnterMessage" =>
               log.info(msg.toString)
-              Future.successful(campfireClient map { client =>
-                msg.userId foreach { userId =>
-                  client.user(userId) foreach { userOpt =>
-                    userOpt foreach { user =>
-                      channelCache.get(channel) foreach { room =>
-                        log.info(s"${user.name} entered room")
-                        channelCache += ((channel, room.copy(users = room.users.map(_ :+ user))))
-                      }
+              Future.successful(msg.userId foreach { userId =>
+                client.user(userId) foreach { userOpt =>
+                  userOpt foreach { user =>
+                    channelCache.get(channel) foreach { room =>
+                      log.info(s"${user.name} entered room")
+                      channelCache += ((channel, room.copy(users = room.users.map(_ :+ user))))
                     }
                   }
                 }
@@ -257,7 +250,7 @@ object CommandHandler {
 
 
             case "KickMessage" =>
-              Future.successful(Unit)
+              Future.successful()
 
 
             case "LeaveMessage" =>
@@ -286,11 +279,11 @@ object CommandHandler {
                 userById(msg.userId.getOrElse(0), channel) map { nick =>
                   commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
                 }
-              } else Future.successful(Unit)
+              } else Future.successful()
 
 
             case "TimestampMessage" =>
-              Future.successful(Unit)
+              Future.successful()
 
 
             case _ =>
@@ -299,16 +292,12 @@ object CommandHandler {
                 userById(msg.userId.getOrElse(0), channel) map { nick =>
                   commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
                 }
-              } else Future.successful(Unit)
+              } else Future.successful()
           }
         }
 
 
-        def me(): Future[Option[User]] = {
-          campfireClient.map { client =>
-            client.me
-          } getOrElse(Future(None))
-        }
+        def me(): Future[Option[User]] = client.me
 
 
         def sendWelcome() {
@@ -324,18 +313,16 @@ object CommandHandler {
 
 
         def updateChannelCache: Future[Unit] = {
-          campfireClient map { client =>
-            channelCache.clear
-            client.rooms map { rooms =>
-              rooms foreach { room =>
-                client.room(room.id) map { room =>
-                  room foreach { room =>
-                    channelCache += ((ircName(room.name), room))
-                  }
+          channelCache.clear
+          client.rooms map { rooms =>
+            rooms foreach { room =>
+              client.room(room.id) map { room =>
+                room foreach { room =>
+                  channelCache += ((ircName(room.name), room))
                 }
               }
             }
-          } getOrElse(Future())
+          }
         }
 
 
@@ -349,17 +336,15 @@ object CommandHandler {
 
 
         def userById(userId: Int, channel: String): Future[String] = {
-          uidToNameCache.get(userId) map (Future.successful(_)) orElse {
-            campfireClient map { client =>
-              client.user(userId) map { opt =>
-                opt map { user =>
-                  val name = ircName(user.name)
-                  uidToNameCache += ((userId, name))
-                  name
-                } getOrElse(userId.toString)
-              }
+          uidToNameCache.get(userId) map (Future.successful(_)) getOrElse {
+            client.user(userId) map { opt =>
+              opt map { user =>
+                val name = ircName(user.name)
+                uidToNameCache += ((userId, name))
+                name
+              } getOrElse(userId.toString)
             }
-          } get
+          }
         }
       }
     }

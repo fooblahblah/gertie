@@ -1,6 +1,6 @@
 #!/bin/sh
 
-OUTPUT_FILE="gertie-`date +'%s'`"
+OUTPUT_FILE="gertie"
 
 find target/ -name "*-one-jar.jar" -delete
 
@@ -21,4 +21,3 @@ EOF
 find target/ -name "*-one-jar.jar" -exec cat {} ';' >> $OUTPUT_FILE
 
 chmod +x $OUTPUT_FILE
-ln -sf $OUTPUT_FILE gertie
