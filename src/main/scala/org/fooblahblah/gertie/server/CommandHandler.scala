@@ -10,7 +10,6 @@ import org.fooblahblah.gertie.util.Utils._
 import scala.collection.mutable.{Set => MutableSet, HashMap => MutableMap}
 import scala.annotation._
 import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import spray.io._
 import spray.io.IOBridge.Closed
@@ -24,6 +23,8 @@ object CommandHandler {
   def apply(log: LoggingAdapter): PipelineStage = {
     new PipelineStage {
       def build(context: PipelineContext, commandPL: CPL, eventPL: EPL): Pipelines = new Pipelines {
+
+        implicit val system = context.connectionActorContext.system
 
         var domain:   Option[String] = None
         var host:     Option[String] = None
