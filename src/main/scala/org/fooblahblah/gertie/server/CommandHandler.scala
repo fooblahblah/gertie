@@ -1,5 +1,6 @@
 package org.fooblahblah.gertie.server
 
+import akka.actor._
 import akka.event.LoggingAdapter
 import java.nio.ByteBuffer
 import org.fooblahblah.bivouac.Bivouac
@@ -9,12 +10,11 @@ import org.fooblahblah.gertie.util.Utils._
 import scala.collection.mutable.{Set => MutableSet, HashMap => MutableMap}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import spray.io._
+import spray.io.IOBridge.Closed
 import spray.util._
 import IRCCommands.{Command => IRCCommand}
-import spray.io.IOBridge.Closed
-import akka.actor.ActorRef
-import akka.actor.PoisonPill
 
 object CommandHandler {
   import IRCCommands._
@@ -33,8 +33,9 @@ object CommandHandler {
         var username: Option[String] = None
         var myUserId: Option[Int]    = None
 
-        val joinedChannels: MutableMap[String, ActorRef] = MutableMap()
-        val channelCache:   MutableMap[String, Room]     = MutableMap()
+        val channelCache:    MutableMap[String, Room]     = MutableMap()
+        val joinedChannels:  MutableMap[String, ActorRef] = MutableMap()
+        val uidToNameCache:  MutableMap[Int, String]      = MutableMap()
 
         implicit def optStrToString(opt: Option[String]): String = opt.getOrElse("<unknown>")
 
@@ -45,12 +46,18 @@ object CommandHandler {
             case HISTORY(channel) =>
               campfireClient foreach { client =>
                 channelCache.get(channel) foreach { room =>
-                  client.recentMessages(room.id) foreach {
-                    _ foreach { msg =>
-                      handleStreamEvent(channel)(msg)
+                  client.recentMessages(room.id) map { l =>
+                    val msgs = l.filterNot(msg => msg.messageType == "EnterMessage" || msg.messageType == "LeaveMessage")
+
+                    def processMsgs(msgs: List[Message]): Future[Unit] = msgs match {
+                      case msg :: ms => handleStreamEvent(channel)(msg) andThen { case _ => processMsgs(ms) }
+                      case _         => Future.successful(Unit)
                     }
+
+                    processMsgs(msgs)
                   }
                 }
+
               }
 
 
@@ -229,11 +236,13 @@ object CommandHandler {
         }
 
 
-        def handleStreamEvent(channel: String)(msg: Message) {
+        def handleStreamEvent(channel: String)(msg: Message): Future[Unit] = {
+
           msg.messageType match {
+
             case "EnterMessage" =>
               log.info(msg.toString)
-              campfireClient map {client =>
+              Future.successful(campfireClient map { client =>
                 msg.userId foreach { userId =>
                   client.user(userId) foreach { userOpt =>
                     userOpt foreach { user =>
@@ -244,38 +253,53 @@ object CommandHandler {
                     }
                   }
                 }
-              }
+              })
 
-            case "KickMessage" => //NOOP
+
+            case "KickMessage" =>
+              Future.successful(Unit)
+
 
             case "LeaveMessage" =>
               log.info(msg.toString)
-              channelCache.get(channel) foreach { room =>
+              Future.successful(channelCache.get(channel) foreach { room =>
                 val userId = msg.userId.getOrElse(0)
                 log.info(s"${userById(userId, channel)} left room")
                 channelCache += ((channel, room.copy(users = room.users.map(_.filterNot(user => user.id == userId)))))
-              }
+              })
+
 
             case "PasteMessage" =>
               val lines = msg.body.split("\n")
 
-              lines.take(3) foreach { line =>
-                commandPL(CampfireReply("PRIVMSG", username, s"#${channel} :> ${line}"))
+              userById(msg.userId.getOrElse(0), channel) map { nick =>
+                lines.take(3) foreach { line =>
+                  commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :> ${line}"))
+                }
+
+                if(lines.length > 3)
+                  commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :> more: https://${domain.getOrElse("bogus")}.campfirenow.com/room/${msg.roomId}/paste/${msg.id}"))
               }
 
-              if(lines.length > 3)
-                commandPL(CampfireReply("PRIVMSG", username, s"#${channel} :> more: https://${domain.getOrElse("bogus")}.campfirenow.com/room/${msg.roomId}/paste/${msg.id}"))
-
             case "TextMessage" =>
-              if(myUserId != msg.userId)
-                commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
+              if(myUserId != msg.userId) {
+                userById(msg.userId.getOrElse(0), channel) map { nick =>
+                  commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
+                }
+              } else Future.successful(Unit)
 
-            case "TimestampMessage" => //NOOP
+
+            case "TimestampMessage" =>
+              Future.successful(Unit)
+
 
             case _ =>
               log.info(msg.toString)
-              if(myUserId != msg.userId)
-                commandPL(CampfireReply("PRIVMSG", userById(msg.userId.getOrElse(0), channel), s"#${channel} :${msg.body.getOrElse("")}"))
+              if(myUserId != msg.userId) {
+                userById(msg.userId.getOrElse(0), channel) map { nick =>
+                  commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
+                }
+              } else Future.successful(Unit)
           }
         }
 
@@ -324,12 +348,18 @@ object CommandHandler {
         }
 
 
-        def userById(userId: Int, channel: String): String = {
-          channelCache.get(channel) flatMap { channel =>
-            channel.users.flatMap { users =>
-              users.filter(u => u.id == userId).headOption.map(u => ircName(u.name))
+        def userById(userId: Int, channel: String): Future[String] = {
+          uidToNameCache.get(userId) map (Future.successful(_)) orElse {
+            campfireClient map { client =>
+              client.user(userId) map { opt =>
+                opt map { user =>
+                  val name = ircName(user.name)
+                  uidToNameCache += ((userId, name))
+                  name
+                } getOrElse(userId.toString)
+              }
             }
-          } getOrElse(userId.toString)
+          } get
         }
       }
     }
