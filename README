@@ -1,16 +1,22 @@
 An IRC/Campfire bridge written in Scala using the spray-io framework.
 
-The name Gertie is inspired by the ill-fated Tacoma Narrows bridge from the 40's.  The bridge collapsed 4 months after completion, earning the nickname, "Galloping Gertie".
+The name Gertie is inspired by the ill-fated Tacoma Narrows bridge from the 40's. The bridge collapsed 4 months after completion, earning the nickname, "Galloping Gertie".
 
 http://en.wikipedia.org/wiki/Tacoma_Narrows_Bridge_(1940)
 
 Hopefully this bridge is more stable :)
 
+This project depends on bivouac, https://github.com/fooblahblah/bivouac.Install bivouac locally using the following (from bivouac):
+
+$ sbt publish-local
+
+Afterward, bivouac should resolve in the gertie project.
+
 To create an executable image:
 
 $ ./release.sh
 
-This will create a timestamped gertie executable image and a symlink.  Both should be executable.
+This will create an executable named gertie in the current directory.  
 
 Credit: To @aniero for https://github.com/aniero/camper_van, which I used heavily as a reference.
 
