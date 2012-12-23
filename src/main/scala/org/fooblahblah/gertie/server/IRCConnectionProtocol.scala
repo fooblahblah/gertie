@@ -93,7 +93,4 @@ class IRCConnectionProtocol(context: PipelineContext, commandPL: (Command) => Un
         ref ? cmd pipeTo sender
       }
   }
-
-  def updateNick(user: User, username: String, host: String) {
-  }
 }
