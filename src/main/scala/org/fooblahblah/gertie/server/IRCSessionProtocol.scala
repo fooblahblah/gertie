@@ -92,6 +92,7 @@ class IRCSessionProtocol(
 
 
     case PART(channels) =>
+      // TODO: Handle PART 0 (leave all)
       channels.foreach { name =>
         channelCache.get(name) map { room =>
           joinedChannels.get(name) map { ref =>
@@ -105,7 +106,6 @@ class IRCSessionProtocol(
 
 
     case PRIVMSG(channels, msg) =>
-      // TODO: Handle PART 0 (leave all)
       channels foreach { channel =>
         channelCache.get(channel) map { room =>
           client.speak(room.id, msg)
