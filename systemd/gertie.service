@@ -1,0 +1,10 @@
+[Unit]
+Description=Campfire/IRC proxy
+
+[Service]
+Type=simple
+ExecStart=/home/jsimpson/workspace/gertie/gertie
+User=jsimpson
+
+[Install]
+WantedBy=multi-user.target
