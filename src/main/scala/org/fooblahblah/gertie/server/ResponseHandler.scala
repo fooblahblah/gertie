@@ -1,11 +1,11 @@
 package org.fooblahblah.gertie.server
 
 import akka.event.LoggingAdapter
+import java.nio.ByteBuffer
 import spray.io._
 import spray.util._
 import org.fooblahblah.gertie.parser._
-import IRCCommands.{Command => IRCCommand}
-import java.nio.ByteBuffer
+import IRCCommands._
 
 object ResponseHandler {
   import IRCCommands._

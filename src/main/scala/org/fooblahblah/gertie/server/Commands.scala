@@ -1,8 +1,9 @@
 package org.fooblahblah.gertie.server
 
 import spray.io.Command
+import org.fooblahblah.bivouac.model.Model._
 import org.fooblahblah.gertie.parser._
-import IRCCommands.{Command => IRCCommand}
+import IRCCommands._
 
 object Commands {
   val CRLF = "\r\n"
@@ -11,8 +12,14 @@ object Commands {
 
   implicit def parseCmdtoSpray(cmd: IRCCommand): Command = WrappedCommand(cmd)
 
+  case class IRCContext(user: User, host: String, nick: String, username:  String, domain: String)
 
   trait Reply extends Command
+
+  case object INITIATE_CONNECTION
+
+  case object CHANNEL_CACHE
+
 
   case object PONG extends Reply {
     override def toString() = s"PONG${CRLF}"

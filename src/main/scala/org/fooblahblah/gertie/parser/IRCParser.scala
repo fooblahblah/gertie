@@ -12,7 +12,7 @@ object IRCParser extends RegexParsers {
     case code ~ params => CODE(code, params)
   }
 
-  def command: Parser[Command] = (
+  def command: Parser[IRCCommand] = (
     pass
     | away
     | history
@@ -31,7 +31,7 @@ object IRCParser extends RegexParsers {
     | unknown
   )
 
-  def message: Parser[Command] = opt(prefix) ~> (command | code)
+  def message: Parser[IRCCommand] = opt(prefix) ~> (command | code)
 
   def newline = "\n"
 
@@ -119,39 +119,39 @@ object IRCParser extends RegexParsers {
 
 
 object IRCCommands {
-  sealed abstract class Command
+  sealed abstract class IRCCommand
 
-  case object PING extends Command
+  case object PING extends IRCCommand
 
-  case class AWAY(msg: Option[String]) extends Command
+  case class AWAY(msg: Option[String]) extends IRCCommand
 
-  case class CODE(code: String, params: Seq[String]) extends Command
+  case class CODE(code: String, params: Seq[String]) extends IRCCommand
 
-  case class HISTORY(channel: String) extends Command
+  case class HISTORY(channel: String) extends IRCCommand
 
-  case class JOIN(channels: Seq[(String, Option[String])]) extends Command
+  case class JOIN(channels: Seq[(String, Option[String])]) extends IRCCommand
 
-  case class LIST(channels: Option[Seq[String]]) extends Command
+  case class LIST(channels: Option[Seq[String]]) extends IRCCommand
 
-  case class MODE(target: String, modeSpec: String) extends Command
+  case class MODE(target: String, modeSpec: String) extends IRCCommand
 
-  case class NAMES(channels: Seq[String]) extends Command
+  case class NAMES(channels: Seq[String]) extends IRCCommand
 
-  case class NICK(nick: String) extends Command
+  case class NICK(nick: String) extends IRCCommand
 
-  case class PART(channels: Seq[String]) extends Command
+  case class PART(channels: Seq[String]) extends IRCCommand
 
-  case class PASS(password: String) extends Command
+  case class PASS(password: String) extends IRCCommand
 
-  case class PRIVMSG(target: Seq[String], msg: String) extends Command
+  case class PRIVMSG(target: Seq[String], msg: String) extends IRCCommand
 
-  case class QUIT(msg: Option[String]) extends Command
+  case class QUIT(msg: Option[String]) extends IRCCommand
 
-  case class TOPIC(channel: String, title: Option[String]) extends Command
+  case class TOPIC(channel: String, title: Option[String]) extends IRCCommand
 
-  case class UNKNOWN(cmd: String, params: Option[String]) extends Command
+  case class UNKNOWN(cmd: String, params: Option[String]) extends IRCCommand
 
-  case class USER(userName: String, hostName: String, serverName: String, realName: String) extends Command
+  case class USER(userName: String, hostName: String, serverName: String, realName: String) extends IRCCommand
 
-  case class WHO(channel: Option[String]) extends Command
+  case class WHO(channel: Option[String]) extends IRCCommand
 }
