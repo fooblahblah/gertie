@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit._
 import scala.concurrent.duration._
 import spray.io._
 import spray.util._
+import spray.io.IOBridge.Settings
 
 
 object Main extends App {
@@ -23,7 +24,7 @@ object Main extends App {
   val iface = config.getString("gertie.interface")
   val port  = config.getInt("gertie.port")
 
-  val ioBridge = IOExtension(system).ioBridge
+  val ioBridge = IOExtension(system).ioBridge(new Settings(config))
 
   val server = system.actorOf(
     Props(new GertieServer(ioBridge)),
