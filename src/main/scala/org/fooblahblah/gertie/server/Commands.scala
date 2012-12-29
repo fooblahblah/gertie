@@ -8,6 +8,13 @@ import IRCCommands._
 object Commands {
   val CRLF = "\r\n"
 
+  val ENTER_MSG     = "EnterMessage"
+  val LEAVE_MSG     = "LeaveMessage"
+  val KICK_MSG      = "KickMessage"
+  val PASTE_MSG     = "PasteMessage"
+  val TEXT_MSG      = "TextMessage"
+  val TIMESTAMP_MSG = "TimestampMessage"
+
   case class WrappedCommand(parseCmd: IRCCommand) extends Command
 
   implicit def parseCmdtoSpray(cmd: IRCCommand): Command = WrappedCommand(cmd)

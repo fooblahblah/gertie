@@ -8,10 +8,11 @@ import org.fooblahblah.gertie.parser._
 import org.fooblahblah.gertie.util.Utils._
 import spray.io._
 import spray.util._
-import scala.collection.mutable.{Set => MutableSet, HashMap => MutableMap}
+import scala.collection.mutable.{HashMap => MutableMap}
 import scala.concurrent.Future
 import IRCCommands._
 import Commands._
+import java.text.SimpleDateFormat
 
 class IRCSessionProtocol(
     context:    PipelineContext,
@@ -27,12 +28,11 @@ class IRCSessionProtocol(
   val joinedChannels:  MutableMap[String, ActorRef] = MutableMap()
   val uidToNameCache:  MutableMap[Int, String]      = MutableMap()
 
-
   def receive = {
     case INITIATE_CONNECTION =>
       updateChannelCache map { _ =>
-        sendWelcome
-        sendMOTD
+        sendWelcome()
+        sendMOTD()
       }
 
 
@@ -42,8 +42,13 @@ class IRCSessionProtocol(
 
     case HISTORY(channel) =>
       channelCache.get(channel) foreach { room =>
+        val msgExclusions = Seq(ENTER_MSG, LEAVE_MSG, KICK_MSG, TIMESTAMP_MSG)
         client.recentMessages(room.id) map { l =>
-          val msgs = l.filterNot(msg => msg.messageType == "EnterMessage" || msg.messageType == "LeaveMessage")
+          val fmt  = new SimpleDateFormat("MM/dd/yyyy hh:mm")
+          val msgs = l.filterNot(msg => msgExclusions.contains(msg.messageType)) map { m =>
+            val body = m.body.map(body => s"<${fmt.format(m.createdAt)}> $body")
+            m.copy(body = body)
+          }
 
           def processMsgs(msgs: List[Message]): Future[Unit] = msgs match {
             case msg :: ms => handleStreamEvent(channel)(msg) flatMap(_ => processMsgs(ms))
@@ -62,10 +67,10 @@ class IRCSessionProtocol(
         channelCache.get(chanName) map { room =>
           if(!joinedChannels.contains(chanName)) {
             client.join(room.id) foreach { joined =>
-              val ref = client.live(room.id, handleStreamEvent(chanName))
+              val ref = client.live(room.id, handleStreamEvent(chanName)(_))
               joinedChannels += ((chanName, ref))
 
-              commandPL(UserReply(username, nick, host, "JOIN", s":#${chanName}"))
+              commandPL(UserReply(username, nick, host, "JOIN", s":#$chanName"))
               self ! TOPIC(chanName, None)
 
               room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
@@ -160,8 +165,7 @@ class IRCSessionProtocol(
   def handleStreamEvent(channel: String)(msg: Message): Future[Unit] = {
 
     msg.messageType match {
-
-      case "EnterMessage" =>
+      case ENTER_MSG =>
         log.info(msg.toString)
         Future.successful(msg.userId foreach { userId =>
           client.user(userId) foreach { userOpt =>
@@ -175,11 +179,11 @@ class IRCSessionProtocol(
         })
 
 
-      case "KickMessage" =>
+      case KICK_MSG =>
         Future.successful()
 
 
-      case "LeaveMessage" =>
+      case LEAVE_MSG =>
         log.info(msg.toString)
         Future.successful(channelCache.get(channel) foreach { room =>
           val userId = msg.userId.getOrElse(0)
@@ -188,7 +192,7 @@ class IRCSessionProtocol(
         })
 
 
-      case "PasteMessage" =>
+      case PASTE_MSG =>
         val lines = msg.body.map(_.split("\n")).getOrElse(sys.error("No body for PasteMessage"))
 
         userById(msg.userId.getOrElse(0), channel) map { nick =>
@@ -200,7 +204,7 @@ class IRCSessionProtocol(
             commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :> more: https://${domain}.campfirenow.com/room/${msg.roomId}/paste/${msg.id}"))
         }
 
-      case "TextMessage" =>
+      case TEXT_MSG =>
         if(user.id != msg.userId) {
           userById(msg.userId.getOrElse(0), channel) map { nick =>
             commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
@@ -208,7 +212,7 @@ class IRCSessionProtocol(
         } else Future.successful()
 
 
-      case "TimestampMessage" =>
+      case TIMESTAMP_MSG =>
         Future.successful()
 
 

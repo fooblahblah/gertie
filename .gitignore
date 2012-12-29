@@ -1,5 +1,6 @@
 .cache
 .classpath
+.idea*
 .project
 .worksheet
 project/target
