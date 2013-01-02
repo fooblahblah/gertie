@@ -205,7 +205,7 @@ class IRCSessionProtocol(
         }
 
       case TEXT_MSG =>
-        if(user.id != msg.userId) {
+        if(Some(user.id) != msg.userId) {
           userById(msg.userId.getOrElse(0), channel) map { nick =>
             commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :${msg.body.getOrElse("")}"))
           }

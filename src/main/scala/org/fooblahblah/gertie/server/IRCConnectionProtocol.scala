@@ -55,7 +55,7 @@ class IRCConnectionProtocol(context: PipelineContext, commandPL: (Command) => Un
 
 
       case USER(username, host, server, name) =>
-        val client = domain flatMap { dom =>
+        domain flatMap { dom =>
           apiKey map { key =>
             val client = Bivouac(dom, key)
 
@@ -64,11 +64,11 @@ class IRCConnectionProtocol(context: PipelineContext, commandPL: (Command) => Un
                 val host = context.connection.remoteAddress.getHostName()
                 val newNick = ircName(user.name)
 
-                commandPL(RawReply(s":${nick}!${username}@${host} NICK ${newNick}"))
+                commandPL(RawReply(s":${newNick}!${username}@${host} NICK ${newNick}"))
 
                 sessionRef.foreach(_ ! PoisonPill)
 
-                val ircContext = new IRCContext(user, host, nick.getOrElse("unknown"), username, domain.getOrElse("unknown"))
+                val ircContext = new IRCContext(user, host, newNick, username, domain.getOrElse("unknown"))
                 val ref = system.actorOf(Props(new IRCSessionProtocol(context, commandPL, client, ircContext)))
 
                 ref ! INITIATE_CONNECTION
