@@ -10,7 +10,7 @@ cat << 'EOF' > $OUTPUT_FILE
 #!/bin/sh
 MYSELF=`which "$0" 2>/dev/null`
 [ $? -gt 0 -a -f "$0" ] && MYSELF="./$0"
-java=/opt/java/bin/java
+java=`which java`
 if test -n "$JAVA_HOME"; then
     java="$JAVA_HOME/bin/java"
 fi
