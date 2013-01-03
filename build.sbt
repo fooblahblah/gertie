@@ -1,3 +1,7 @@
+import com.typesafe.sbt.SbtStartScript
+
+seq(SbtStartScript.startScriptForClassesSettings: _*)
+
 seq(com.github.retronym.SbtOneJar.oneJarSettings: _*)
 
 name := "gertie"
