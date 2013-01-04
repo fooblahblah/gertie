@@ -93,7 +93,7 @@ object IRCParser extends RegexParsers {
     JOIN(chans.zip(paddedKeys))
   }
 
-  def list: Parser[LIST] = "(?i)LIST".r ~> opt(whitespace ~> channels) ^^ { LIST(_) }
+  def list: Parser[LIST] = "(?i)LIST".r ~> opt(whitespace ~> repsep("""\S+""".r, comma)) ^^ { LIST(_) }
 
   def part: Parser[PART] = "(?i)PART".r ~> whitespace ~> channels <~ """.*""".r ^^ { PART(_) }
 
