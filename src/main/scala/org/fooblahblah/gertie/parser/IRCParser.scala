@@ -79,7 +79,7 @@ object IRCParser extends RegexParsers {
 
   def nick: Parser[NICK] = "(?i)NICK".r ~> whitespace ~> nickname <~ opt(""".*""".r) ^^ { NICK(_) }
 
-  def user: Parser[USER] = "(?i)USER ".r ~> """[^\s]+""".r ~ whitespace ~ hostname ~ whitespace ~ servername ~ whitespace ~ ":" ~ """.+""".r ^^ {
+  def user: Parser[USER] = "(?i)USER ".r ~> """[^\s]+""".r ~ whitespace ~ hostname ~ whitespace ~ servername ~ whitespace ~ opt(":") ~  """.+""".r  ^^ {
     case username ~ _ ~ host ~ _ ~ server ~ _ ~ _ ~ real => USER(username, host, server, real)
   }
 
