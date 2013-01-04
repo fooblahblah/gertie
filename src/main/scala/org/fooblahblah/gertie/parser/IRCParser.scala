@@ -51,7 +51,7 @@ object IRCParser extends RegexParsers {
 
   def params: Parser[String] = whitespace ~> ( ":" ~> """.*""".r | opt(":") ~> """.*""".r )
 
-  def hostname: Parser[String] = repsep("""[a-zA-Z0-9\-*]+""".r, ".") ^^ { _.mkString(".") }
+  def hostname: Parser[String] = repsep("""[a-zA-Z0-9\-\*]+""".r, ".") ^^ { _.mkString(".") }
 
   def servername = hostname
 

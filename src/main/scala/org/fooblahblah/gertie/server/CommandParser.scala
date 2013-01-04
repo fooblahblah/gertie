@@ -20,8 +20,9 @@ object CommandParser {
             val msg = x.buffer.array.asString.trim
             log.info(s"gertie <- " + msg)
 
-            val cmd = parser(msg)
-            commandPipeline(cmd)
+            msg.split('\n') foreach { msg =>
+              commandPipeline(parser(msg.trim))
+            }
 
           case ev =>
             eventPL(ev)
