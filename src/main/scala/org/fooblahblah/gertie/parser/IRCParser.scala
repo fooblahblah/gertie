@@ -67,20 +67,20 @@ object IRCParser extends RegexParsers {
 
   def ping = """(?i)PING.*""".r ^^ { case s => PING }
 
-  def quit: Parser[QUIT] = "(?i)QUIT".r ~> opt(" :" ~> """(.*)""".r) ^^ { QUIT(_) }
+  def quit: Parser[QUIT] = "(?i)QUIT".r ~> opt(whitespace ~> ":" ~> """(.*)""".r) ^^ { QUIT(_) }
 
   def mode: Parser[MODE] = "(?i)MODE".r ~> whitespace ~> (channel | nickname) ~ (whitespace ~> opt("+" | "-") ~> ("o" | "p" | "s" | "i" | "t" | "n" | "b" | "v")) <~ """\s*.*""".r ^^ {
     case target ~ spec => MODE(target, spec)
   }
 
-  def away: Parser[AWAY] = "(?i)AWAY".r ~> opt(" :" ~> """(.*)""".r) ^^ { AWAY(_) }
+  def away: Parser[AWAY] = "(?i)AWAY".r ~> opt(whitespace ~> ":" ~> """(.*)""".r) ^^ { AWAY(_) }
 
   def pass: Parser[PASS] = "(?i)PASS".r ~> whitespace ~> """(.*)""".r ^^ { PASS(_) }
 
   def nick: Parser[NICK] = "(?i)NICK".r ~> whitespace ~> nickname <~ opt(""".*""".r) ^^ { NICK(_) }
 
-  def user: Parser[USER] = "(?i)USER ".r ~> """[^\s]+""".r ~ " " ~ hostname ~ " " ~ servername ~ " :" ~ """.+""".r ^^ {
-    case username ~ _ ~ host ~ _ ~ server ~ _ ~ real => USER(username, host, server, real)
+  def user: Parser[USER] = "(?i)USER ".r ~> """[^\s]+""".r ~ whitespace ~ hostname ~ whitespace ~ servername ~ whitespace ~ ":" ~ """.+""".r ^^ {
+    case username ~ _ ~ host ~ _ ~ server ~ _ ~ _ ~ real => USER(username, host, server, real)
   }
 
   def join: Parser[JOIN] = "(?i)JOIN".r ~> whitespace ~> channels ~ opt(whitespace ~> repsep("""[^,]+""".r, """,\s*""".r)) ^^ { case chans ~ keys =>
