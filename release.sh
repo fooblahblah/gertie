@@ -14,7 +14,7 @@ java=`which java`
 if test -n "$JAVA_HOME"; then
     java="$JAVA_HOME/bin/java"
 fi
-exec "$java" -Djava.net.preferIPv4Stack=true $java_args -jar $MYSELF "$@"
+exec "$java" -Dfile.encoding=UTF-8 -Djava.net.preferIPv4Stack=true $java_args -jar $MYSELF "$@"
 exit 1
 EOF
 
