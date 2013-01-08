@@ -2,6 +2,7 @@ package org.fooblahblah.gertie.server
 
 import akka.actor._
 import akka.event.Logging
+import java.text.SimpleDateFormat
 import org.fooblahblah.bivouac.Bivouac
 import org.fooblahblah.bivouac.model.Model._
 import org.fooblahblah.gertie.parser._
@@ -9,10 +10,9 @@ import org.fooblahblah.gertie.util.Utils._
 import spray.io._
 import spray.util._
 import scala.collection.mutable.{HashMap => MutableMap}
-import scala.concurrent.Future
+import scala.concurrent.{promise, Future}
 import IRCCommands._
 import Commands._
-import java.text.SimpleDateFormat
 
 class IRCSessionProtocol(
     context:    PipelineContext,
@@ -116,8 +116,6 @@ class IRCSessionProtocol(
           client.speak(room.id, msg)
         }
       }
-
-
 
 
     case TOPIC(channel, titleOpt) =>
@@ -239,17 +237,27 @@ class IRCSessionProtocol(
   }
 
 
-  def updateChannelCache: Future[Unit] = {
+  def updateChannelCache: Future[_] = {
+    val p = promise[Unit]()
+
     channelCache.clear
+
     client.rooms map { rooms =>
-      rooms foreach { room =>
-        client.room(room.id) map { room =>
-          room foreach { room =>
-            channelCache += ((ircName(room.name), room))
+      Future.reduce {
+        rooms map { r =>
+          client.room(r.id) map { opt =>
+            opt map { room =>
+              channelCache += ((ircName(room.name), room))
+              room
+            }
           }
         }
+      } ((acc, opt) => opt) andThen {
+        case _ => p.success()
       }
     }
+
+    p.future
   }
 
 
