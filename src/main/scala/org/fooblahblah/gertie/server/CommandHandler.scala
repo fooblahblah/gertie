@@ -41,21 +41,8 @@ object CommandHandler {
 
         val eventPipeline: EPL = {
           case e: Closed =>
-            (ircActorRef ? CHANNEL_CACHE).mapTo[(Map[String, Room], Map[String, ActorRef])] map { t =>
-              val (channelCache, joinedChannels) = t
-
-              joinedChannels.foreach { pair =>
-                val (name, ref) = pair
-
-                channelCache.get(name) map { room =>
-                  log.info(s"Leaving $name")
-                  ref ! PoisonPill
-                  ircActorRef ! PART(Seq(name))
-                }
-              }
-            }
+            ircActorRef ! JOIN(Seq(("0", None)))
             eventPL(e)
-
 
           case e =>
             eventPL(e)

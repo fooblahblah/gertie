@@ -36,10 +36,6 @@ class IRCSessionProtocol(
       }
 
 
-    case CHANNEL_CACHE =>
-      sender ! (channelCache.toMap, joinedChannels.toMap)
-
-
     case HISTORY(channel) =>
       channelCache.get(channel) foreach { room =>
         val msgExclusions = Seq(ENTER_MSG, LEAVE_MSG, KICK_MSG, TIMESTAMP_MSG)
@@ -61,28 +57,34 @@ class IRCSessionProtocol(
 
 
     case JOIN(channels) =>
-      channels.foreach { chanPair =>
-        val (chanName, _) = chanPair
+      channels match {
+        // JOIN 0 is special, meaning leave all channels
+        case ("0", _) :: Nil =>
+          self ! PART(joinedChannels.keys.toSeq)
 
-        channelCache.get(chanName) map { room =>
-          if(!joinedChannels.contains(chanName)) {
-            client.join(room.id) foreach { joined =>
-              val ref = client.live(room.id, handleStreamEvent(chanName)(_))
-              joinedChannels += ((chanName, ref))
+        case _ =>
+          channels.foreach { chanPair =>
+            val (chanName, _) = chanPair
 
-              commandPL(UserReply(username, nick, host, "JOIN", s":#$chanName"))
-              self ! TOPIC(chanName, None)
+            channelCache.get(chanName) map { room =>
+              if(!joinedChannels.contains(chanName)) {
+                client.join(room.id) foreach { joined =>
+                  val ref = client.live(room.id, handleStreamEvent(chanName)(_))
+                  joinedChannels += ((chanName, ref))
 
-              room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
-                commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
+                  commandPL(UserReply(username, nick, host, "JOIN", s":#$chanName"))
+                  self ! TOPIC(chanName, None)
+
+                  room.users.map(_.map(u => ircName(u.name)).mkString(" ")) map { nickList =>
+                    commandPL(NumericReply(Replies.RPL_NAMREPLY, nick, s"= #${chanName} :${nickList}"))
+                  }
+
+                  self ! HISTORY(chanName)
+                }
               }
-
-              self ! HISTORY(chanName)
             }
           }
-        }
       }
-
 
     case LIST(channels) =>
       channelCache.toList.sortBy(_._1) foreach { kv =>
@@ -97,8 +99,7 @@ class IRCSessionProtocol(
 
 
     case PART(channels) =>
-      // TODO: Handle PART 0 (leave all)
-      channels.foreach { name =>
+      channels foreach { name =>
         channelCache.get(name) map { room =>
           joinedChannels.get(name) map { ref =>
             log.info(s"Leaving $name")

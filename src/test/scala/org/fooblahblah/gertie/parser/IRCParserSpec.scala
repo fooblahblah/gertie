@@ -66,12 +66,13 @@ class IRCParserSpec extends Specification {
       parser("JOIN #boulder, &scala") === JOIN(List(("boulder", None), ("scala", None)))
       parser("JOIN #boulder, &scala bogus123") === JOIN(List(("boulder", Some("bogus123")), ("scala", None)))
       parser("JOIN #boulder, &scala bogus123,   fubar") === JOIN(List(("boulder", Some("bogus123")), ("scala", Some("fubar"))))
+      parser("JOIN #0") === JOIN(List(("0", None)))
     }
 
     "handle LIST" in {
       parser("LIST") === LIST(None)
-      parser("LIST #boulder") === LIST(Some(List("boulder")))
-      parser("LIST #boulder,  &chan1") === LIST(Some(List("boulder", "chan1")))
+      parser("LIST #boulder") === LIST(None)
+      parser("LIST #boulder,  &chan1") === LIST(None)
     }
 
     "handle PART" in {

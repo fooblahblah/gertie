@@ -25,8 +25,6 @@ object Commands {
 
   case object INITIATE_CONNECTION
 
-  case object CHANNEL_CACHE
-
 
   case object PONG extends Reply {
     override def toString() = s"PONG${CRLF}"

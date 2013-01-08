@@ -17,6 +17,7 @@ object IRCParser extends RegexParsers {
     | away
     | history
     | join
+    | join0
     | list
     | mode
     | names
@@ -83,17 +84,21 @@ object IRCParser extends RegexParsers {
     case username ~ _ ~ host ~ _ ~ server ~ _ ~ _ ~ real => USER(username, host, server, real)
   }
 
-  def join: Parser[JOIN] = "(?i)JOIN".r ~> whitespace ~> channels ~ opt(whitespace ~> repsep("""[^,]+""".r, """,\s*""".r)) ^^ { case chans ~ keys =>
-    def padding = 1 to (chans.length - keys.getOrElse(Nil).length) map (i => None)
 
-    val paddedKeys = keys map { k =>
-      k.map(Some(_)) ++ padding
-    } getOrElse(padding)
+  def join: Parser[JOIN] = "(?i)JOIN".r ~> whitespace ~> (channels ~ opt(whitespace ~> repsep("""[^,]+""".r, """,\s*""".r))) ^^ {
+    case chans ~ keys =>
+      def padding = 1 to (chans.length - keys.getOrElse(Nil).length) map (i => None)
 
-    JOIN(chans.zip(paddedKeys))
+      val paddedKeys = keys map { k =>
+        k.map(Some(_)) ++ padding
+      } getOrElse(padding)
+
+      JOIN(chans.zip(paddedKeys))
   }
 
-  def list: Parser[LIST] = "(?i)LIST".r ~> opt(whitespace ~> repsep("""\S+""".r, comma)) ^^ { LIST(_) }
+  def join0: Parser[JOIN] = """(?i)JOIN\s+0""".r ^^ { case _ => JOIN(Seq(("0", None))) }
+
+  def list: Parser[LIST] = "(?i)LIST.*".r ^^ { case _ => LIST(None) }
 
   def part: Parser[PART] = "(?i)PART".r ~> whitespace ~> channels <~ """.*""".r ^^ { PART(_) }
 
