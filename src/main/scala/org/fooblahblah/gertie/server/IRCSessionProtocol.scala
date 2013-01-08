@@ -46,7 +46,7 @@ class IRCSessionProtocol(
         client.recentMessages(room.id) map { l =>
           val fmt  = new SimpleDateFormat("MM/dd/yyyy hh:mm")
           val msgs = l.filterNot(msg => msgExclusions.contains(msg.messageType)) map { m =>
-            val body = m.body.map(body => s"<${fmt.format(m.createdAt)}> $body")
+            val body = m.body.map(body => s"[${fmt.format(m.createdAt)}] $body")
             m.copy(body = body)
           }
 
@@ -203,6 +203,7 @@ class IRCSessionProtocol(
           if(lines.length > 3)
             commandPL(CampfireReply("PRIVMSG", nick, s"#${channel} :> more: https://${domain}.campfirenow.com/room/${msg.roomId}/paste/${msg.id}"))
         }
+
 
       case TEXT_MSG =>
         if(Some(user.id) != msg.userId) {
