@@ -18,7 +18,7 @@ object CommandParser {
         val eventPipeline: EPL = {
           case x: IOPeer.Received =>
             val msg = x.buffer.array.asString.trim
-            log.info(s"gertie <- " + msg)
+            log.debug(s"recv <- " + msg)
 
             "(\r\n|\n)".r.split(msg) foreach { m =>
               val p = parser(m.trim)

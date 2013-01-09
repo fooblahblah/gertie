@@ -20,11 +20,13 @@ resolvers ++= Seq(
   "releases"  at "http://oss.sonatype.org/content/repositories/releases")
 
 libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-actor"            % "2.1.0",
-  "io.spray"          %  "spray-io"              % "1.1-M6",
-  "junit"             %  "junit"                 % "4.10" % "test",
-  "org.specs2"        %% "specs2"                % "1.13" % "test",
-  "org.fooblahblah"   %% "bivouac"               % "1.0.0"
+  "ch.qos.logback"       % "logback-classic"    % "1.0.9",
+  "com.typesafe.akka"    %% "akka-actor"        % "2.1.0",
+  "com.typesafe.akka"    %% "akka-slf4j"        % "2.1.0",
+  "io.spray"             %  "spray-io"          % "1.1-M6",
+  "junit"                %  "junit"             % "4.10" % "test",
+  "org.specs2"           %% "specs2"            % "1.13" % "test",
+  "org.fooblahblah"      %% "bivouac"           % "1.0.0"
 )
 
 initialCommands := "import org.fooblahblah.gertie._"

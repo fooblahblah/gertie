@@ -42,10 +42,10 @@ class IRCParserSpec extends Specification {
     }
 
     "handle MODE" in {
-      parser("MODE #scala o") === MODE("scala", "o")
-      parser("MODE #scala +s") === MODE("scala", "s")
-      parser("MODE fooblahblah -i") === MODE("fooblahblah", "i")
-      parser("MODE fooblahblah -i random blah") === MODE("fooblahblah", "i")
+      parser("MODE #scala o") === MODE("scala", Some("o"))
+      parser("MODE #scala +s") === MODE("scala", Some("s"))
+      parser("MODE fooblahblah -i") === MODE("fooblahblah", Some("i"))
+      parser("MODE fooblahblah -i random blah") === MODE("fooblahblah", Some("i"))
     }
 
     "handle PASS" in {
@@ -105,6 +105,10 @@ class IRCParserSpec extends Specification {
 
     "handle HISTORY" in {
       parser("HISTORY #boulder") === HISTORY("boulder")
+    }
+
+    "handle USERHOST" in {
+      parser("USERHOST foo bar baz") === USERHOST(Seq("foo", "bar", "baz"))
     }
   }
 }

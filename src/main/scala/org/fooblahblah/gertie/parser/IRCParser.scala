@@ -28,6 +28,7 @@ object IRCParser extends RegexParsers {
     | quit
     | topic
     | user
+    | userhost
     | who
     | unknown
   )
@@ -42,7 +43,7 @@ object IRCParser extends RegexParsers {
 
   def number = """[0-9]""".r
 
-  def special = "-" | "[" | "]" | "\\" | "`" | "^" | "{" | "}"
+  def special = "-" | "_" | "[" | "]" | "\\" | "`" | "^" | "{" | "}"
 
   def whitespace = """\s+""".r
 
@@ -70,7 +71,7 @@ object IRCParser extends RegexParsers {
 
   def quit: Parser[QUIT] = "(?i)QUIT".r ~> opt(whitespace ~> ":" ~> """(.*)""".r) ^^ { QUIT(_) }
 
-  def mode: Parser[MODE] = "(?i)MODE".r ~> whitespace ~> (channel | nickname) ~ (whitespace ~> opt("+" | "-") ~> ("o" | "p" | "s" | "i" | "t" | "n" | "b" | "v")) <~ """\s*.*""".r ^^ {
+  def mode: Parser[MODE] = "(?i)MODE".r ~> whitespace ~> (channel | nickname) ~ opt(whitespace ~> opt("+" | "-") ~> ("o" | "p" | "s" | "i" | "t" | "n" | "b" | "v")) <~ """\s*.*""".r ^^ {
     case target ~ spec => MODE(target, spec)
   }
 
@@ -114,6 +115,8 @@ object IRCParser extends RegexParsers {
     case target ~ msg => PRIVMSG(target, msg)
   }
 
+  def userhost: Parser[USERHOST] = "(?i)USERHOST".r ~> whitespace ~> repsep(nickname, """\s+""".r) ^^ { USERHOST(_) }
+
   def apply(buffer: String) = {
     parseAll(message, buffer) match {
       case Success(cmd, _)    => cmd
@@ -138,7 +141,7 @@ object IRCCommands {
 
   case class LIST(channels: Option[Seq[String]]) extends IRCCommand
 
-  case class MODE(target: String, modeSpec: String) extends IRCCommand
+  case class MODE(target: String, modeSpec: Option[String]) extends IRCCommand
 
   case class NAMES(channels: Seq[String]) extends IRCCommand
 
@@ -157,6 +160,8 @@ object IRCCommands {
   case class UNKNOWN(cmd: String, params: Option[String]) extends IRCCommand
 
   case class USER(userName: String, hostName: String, serverName: String, realName: String) extends IRCCommand
+
+  case class USERHOST(nicknames: Seq[String]) extends IRCCommand
 
   case class WHO(channel: Option[String]) extends IRCCommand
 }

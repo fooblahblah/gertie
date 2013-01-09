@@ -17,7 +17,7 @@ object ResponseHandler {
 
         val commandPipeline: CPL = {
           case cmd: Reply =>
-            log.info(s"gertie -> $cmd")
+            log.debug(s"send -> $cmd")
             commandPL(IOPeer.Send(ByteBuffer.wrap(s"$cmd".getBytes), None))
 
           case cmd =>

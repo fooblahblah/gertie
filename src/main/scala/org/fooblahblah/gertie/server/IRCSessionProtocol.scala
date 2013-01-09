@@ -24,9 +24,9 @@ class IRCSessionProtocol(
 
   val log = Logging(system, this)
 
-  val channelCache:    MutableMap[String, Room]     = MutableMap()
-  val joinedChannels:  MutableMap[String, ActorRef] = MutableMap()
-  val uidToNameCache:  MutableMap[Int, String]      = MutableMap()
+  private val channelCache:    MutableMap[String, Room]     = MutableMap()
+  private val joinedChannels:  MutableMap[String, ActorRef] = MutableMap()
+  private val uidToNameCache:  MutableMap[Int, String]      = MutableMap()
 
   def receive = {
     case INITIATE_CONNECTION =>
@@ -86,12 +86,16 @@ class IRCSessionProtocol(
           }
       }
 
+
     case LIST(channels) =>
       channelCache.toList.sortBy(_._1) foreach { kv =>
         val (name, room) = kv
         commandPL(NumericReply(Replies.RPL_LIST, nick, s"#${name} ${room.users.getOrElse(Nil).length} :${room.topic}"))
       }
       commandPL(NumericReply(Replies.RPL_LISTEND, nick, ":End of list"))
+
+
+    case MODE(target, mode) => // throw away
 
 
     case PING =>
@@ -136,6 +140,9 @@ class IRCSessionProtocol(
             commandPL(NumericReply(Replies.RPL_TOPIC, target, s":${room.topic}"))
         }
       }
+
+
+    case USERHOST(nicknames) => // throw away
 
 
     case WHO(channelOpt) =>
